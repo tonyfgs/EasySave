@@ -1,0 +1,7 @@
+﻿services:
+  console:
+    image: console
+    build:
+      context: .
+      dockerfile: Console/Dockerfile
+
