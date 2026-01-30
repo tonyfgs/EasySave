@@ -61,7 +61,7 @@ Le projet a suivi une montée en puissance technologique découpée en 3 grandes
 
 ---
 
-Equipe de développement
+## 🧑‍🤝‍🧑 Equipe de développement
 <p align="center" >
 
 <a href=""  style="margin-right: 20px;">
