@@ -1,6 +1,8 @@
 ﻿// See https://aka.ms/new-console-template for more information
-using Easy.Log;
-using Easy.Log.Interface;
+
+using Logger;
+using Logger.Interface;
+using Logger.Service;
 
 Console.WriteLine("Hello, World!");
 Console.WriteLine();
