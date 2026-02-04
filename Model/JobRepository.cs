@@ -1,4 +1,7 @@
-﻿namespace Model;
+﻿using Logger;
+using Logger.Interface;
+
+namespace Model;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -6,9 +9,12 @@ using System.Linq;
 
 public class JobRepository
 {
+    private const int MAX_JOBS = 5;
     private string PathDest { get; init; }
+    private ILogger Logger { get; init; }
     public JobRepository(string pathDest= null)
     {
+  
         if (pathDest == null)
         {
             PathDest = Path.Combine(Directory.GetCurrentDirectory(), "BackupJobs");
@@ -28,12 +34,13 @@ public class JobRepository
     {
         if (job == null) return false;
         if (string.IsNullOrWhiteSpace(job.Name)) return false;
-
+        
+        
         try
         {
             EnsureDirectoryExists();
 
-            if (CountJobs() >= 5) return false;
+            if (CountJobs() >= MAX_JOBS) return false;
             if (job.Id != 0 && ExistsById(job.Id)) return false;
             if (ExistsByName(job.Name)) return false;
 
@@ -113,16 +120,14 @@ public class JobRepository
     public bool UpdateJob(BackupJob job)
     {
         if (job == null) return false;
-        if (job.Id == 0) return false; // on exige un Id pour mettre à jour
+        if (job.Id == 0) return false;
         if (string.IsNullOrWhiteSpace(job.Name)) return false;
 
         try
         {
-            // vérifie que l'élément existe
             var existingFile = Directory.EnumerateFiles(PathDest, $"{job.Id}_*.json", SearchOption.TopDirectoryOnly).FirstOrDefault();
             if (existingFile == null) return false;
-
-            // si un autre job utilise déjà ce nom -> conflit
+            
             var nameCollision = Directory.EnumerateFiles(PathDest, $"*_{job.Name}.json", SearchOption.TopDirectoryOnly)
                 .Select(Path.GetFileName)
                 .FirstOrDefault();
@@ -139,7 +144,6 @@ public class JobRepository
             var json = JsonSerializer.Serialize(job, options);
             File.WriteAllText(newPath, json);
 
-            // si le nom de fichier a changé, supprimer l'ancien fichier
             if (!string.Equals(existingFile, newPath, StringComparison.OrdinalIgnoreCase) && File.Exists(existingFile))
             {
                 File.Delete(existingFile);
@@ -183,35 +187,19 @@ public class JobRepository
         }
     }
     
-    public System.Collections.Generic.List<BackupJob> GetAllJobs()
+    public IReadOnlyList<BackupJob> GetAllJobs()
     {
-        var result = new System.Collections.Generic.List<BackupJob>();
-        try
-        {
-            var files = Directory.EnumerateFiles(PathDest, "*.json", SearchOption.TopDirectoryOnly);
-            var options = new JsonSerializerOptions();
-            foreach (var f in files)
-            {
-                try
-                {
-                    var json = File.ReadAllText(f);
-                    var job = JsonSerializer.Deserialize<BackupJob>(json, options);
-                    if (job != null) result.Add(job);
-                }
-                catch
-                {
-                    return null;
-                }
-            }
-        }
-        catch
-        {
-            return null;
-        }
+        if (!Directory.Exists(PathDest))
+            return Array.Empty<BackupJob>(); 
 
+        var result = new List<BackupJob>();
+        foreach (var f in Directory.EnumerateFiles(PathDest, "*.json"))
+        {
+            var json = File.ReadAllText(f);
+            var job = JsonSerializer.Deserialize<BackupJob>(json);
+            if (job != null) result.Add(job);
+
+        }
         return result;
-    }  
+    }
 }
-
-
-

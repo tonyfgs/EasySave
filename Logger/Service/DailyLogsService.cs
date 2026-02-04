@@ -5,7 +5,7 @@ namespace Logger.Service;
 
 public class DailyLogsService: ILogger
 {
-    public void WriteInFile<T>(string path, T logData) where T : LogData 
+    public void WriteInFile<T>(string path, T logData)
     {
         string? directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory))
