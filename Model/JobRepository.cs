@@ -1,17 +1,11 @@
-﻿using Logger;
-using Logger.Interface;
+using System.Text.Json;
 
 namespace Model;
-using System;
-using System.IO;
-using System.Text.Json;
-using System.Linq;
 
 public class JobRepository
 {
     private const int MAX_JOBS = 5;
     private string PathDest { get; init; }
-    private ILogger Logger { get; init; }
     public JobRepository(string pathDest= null)
     {
   
@@ -28,8 +22,8 @@ public class JobRepository
         {
             Directory.CreateDirectory(PathDest);
         }
-    } 
-    
+    }
+
     public bool AddJob(BackupJob job)
     {
         if (job == null) return false;
@@ -46,7 +40,7 @@ public class JobRepository
 
             var jobToSave = GenerateIdIfNeeded(job);
             var fullPath = BuildFilePath(jobToSave);
-            
+
             return WriteJobToFile(jobToSave, fullPath);
         }
         catch
@@ -54,7 +48,7 @@ public class JobRepository
             return false;
         }
     }
-    
+
     private void EnsureDirectoryExists()
     {
         Directory.CreateDirectory(PathDest);
@@ -125,6 +119,7 @@ public class JobRepository
 
         try
         {
+            // vérifie que l'élément existe
             var existingFile = Directory.EnumerateFiles(PathDest, $"{job.Id}_*.json", SearchOption.TopDirectoryOnly).FirstOrDefault();
             if (existingFile == null) return false;
             
@@ -200,6 +195,10 @@ public class JobRepository
             if (job != null) result.Add(job);
 
         }
+
         return result;
     }
 }
+
+
+

@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore --locked-mode || dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release /p:TreatWarningsAsErrors=true
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: "**/test-results.trx"
+
+  format-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Check formatting
+        run: dotnet format --verify-no-changes --verbosity diagnostic
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Check for vulnerable packages
+        run: dotnet list package --vulnerable --include-transitive 2>&1 | tee vulnerability-report.txt; if grep -q "has the following vulnerable packages" vulnerability-report.txt; then exit 1; fi
+
+      - name: Check for deprecated packages
+        run: dotnet list package --deprecated 2>&1 | tee deprecated-report.txt; if grep -q "has the following deprecated packages" deprecated-report.txt; then echo "::warning::Deprecated packages found"; fi
+
+      - name: Check for outdated packages
+        if: github.event_name == 'pull_request'
+        run: dotnet list package --outdated
+        continue-on-error: true
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for secrets in commit history
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate solution structure
+        run: dotnet sln EasySave.sln list

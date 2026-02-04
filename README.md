@@ -36,7 +36,7 @@ Le projet a suivi une montée en puissance technologique découpée en 3 grandes
 * **Gestion Mono-Instance :** Sécurisation de l'accès à l'utilitaire de cryptage pour éviter les erreurs de corruption.
 * **Diagnostic :** Mesure et log du temps de cryptage précis (en ms).
 
-### 🖥️ Expérience Utilisateur (WPF)
+### 🖥️ Expérience Utilisateur 
 * **Interface Intuitive :** Dashboard permettant de piloter (Play/Pause/Stop) chaque travail individuellement.
 * **Monitoring Temps Réel :** Barre de progression et pourcentage d'avancement pour chaque tâche en cours.
 * **Smart Pause :** Si un "Logiciel Métier" (ex: Calculatrice) est détecté, EasySave met les sauvegardes en pause pour libérer les ressources.
@@ -46,7 +46,7 @@ Le projet a suivi une montée en puissance technologique découpée en 3 grandes
 ## 🛠️ Stack Technique
 
 * **Logiciel :** `C#` / `.NET Core`
-* **Interface :** `WPF` (Windows Presentation Foundation)
+* **Interface :**  a définir
 * **Conteneurisation :** `Docker` (Service de centralisation des logs)
 * **Formats :** `JSON` & `XML`
 * **Architecture :** `MVVM` (Model-View-ViewModel)
@@ -57,7 +57,7 @@ Le projet a suivi une montée en puissance technologique découpée en 3 grandes
 
 1. **Cloner le projet**
    ```bash
-   git clone [https://github.com/votre-username/EasySave.git](https://github.com/votre-username/EasySave.git)
+   git clone [https://github.com/tonyfgs/EasySave.git](https://github.com/tonyfgs/EasySave.git)
 
 ---
 
