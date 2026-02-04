@@ -8,7 +8,7 @@ using System.Linq;
 public class JobRepository
 {
     private string PathDest { get; init; }
-    public JobRepository(string pathDest = null)
+    public JobRepository(string? pathDest = null)
     {
         if (pathDest == null)
         {
@@ -153,7 +153,7 @@ public class JobRepository
         }
     }
 
-    public BackupJob GetJobByID(long id)
+    public BackupJob? GetJobByID(long id)
     {
         try
         {
@@ -168,7 +168,7 @@ public class JobRepository
         }
     }
 
-    public BackupJob GetJobByName(string Name)
+    public BackupJob? GetJobByName(string Name)
     {
         if (string.IsNullOrWhiteSpace(Name)) return null;
         try
@@ -184,7 +184,7 @@ public class JobRepository
         }
     }
 
-    public System.Collections.Generic.List<BackupJob> GetAllJobs()
+    public System.Collections.Generic.List<BackupJob>? GetAllJobs()
     {
         var result = new System.Collections.Generic.List<BackupJob>();
         try
