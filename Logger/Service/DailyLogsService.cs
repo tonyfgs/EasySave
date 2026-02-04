@@ -26,7 +26,7 @@ public class DailyLogsService : ILogger
                 outputFile.WriteLine(jsonString);
             }
         }
-        catch (Exception exception)
+        catch
         {
             throw;
         }
