@@ -7,7 +7,7 @@ using System.Linq;
 public class JobRepository
 {
     private string PathDest { get; init; }
-    public JobRepository(string pathDest= null)
+    public JobRepository(string pathDest = null)
     {
         if (pathDest == null)
         {
@@ -22,8 +22,8 @@ public class JobRepository
         {
             Directory.CreateDirectory(PathDest);
         }
-    } 
-    
+    }
+
     public bool AddJob(BackupJob job)
     {
         if (job == null) return false;
@@ -39,7 +39,7 @@ public class JobRepository
 
             var jobToSave = GenerateIdIfNeeded(job);
             var fullPath = BuildFilePath(jobToSave);
-            
+
             return WriteJobToFile(jobToSave, fullPath);
         }
         catch
@@ -47,7 +47,7 @@ public class JobRepository
             return false;
         }
     }
-    
+
     private void EnsureDirectoryExists()
     {
         Directory.CreateDirectory(PathDest);
@@ -57,7 +57,7 @@ public class JobRepository
     {
         return Directory.EnumerateFiles(PathDest, "*.json", SearchOption.TopDirectoryOnly).Count();
     }
-    
+
     private bool ExistsById(long id)
     {
         var files = Directory.EnumerateFiles(PathDest, "*.json", SearchOption.TopDirectoryOnly);
@@ -70,7 +70,7 @@ public class JobRepository
         var pattern = $"*_{name}.json";
         return Directory.EnumerateFiles(PathDest, pattern, SearchOption.TopDirectoryOnly).Any();
     }
-    
+
     private BackupJob GenerateIdIfNeeded(BackupJob job)
     {
         if (job.Id != 0) return job;
@@ -81,7 +81,7 @@ public class JobRepository
     {
         return $"{job.Id}_{job.Name}.json";
     }
-    
+
     private string BuildFilePath(BackupJob job)
     {
         return Path.Combine(PathDest, BuildFileName(job));
@@ -94,7 +94,7 @@ public class JobRepository
         File.WriteAllText(fullPath, json);
         return true;
     }
-    
+
     public bool DeleteJob(long id)
     {
         try
@@ -109,7 +109,7 @@ public class JobRepository
             return false;
         }
     }
-    
+
     public bool UpdateJob(BackupJob job)
     {
         if (job == null) return false;
@@ -151,7 +151,7 @@ public class JobRepository
             return false;
         }
     }
-        
+
     public BackupJob GetJobByID(long id)
     {
         try
@@ -166,7 +166,7 @@ public class JobRepository
             return null;
         }
     }
-    
+
     public BackupJob GetJobByName(string Name)
     {
         if (string.IsNullOrWhiteSpace(Name)) return null;
@@ -182,7 +182,7 @@ public class JobRepository
             return null;
         }
     }
-    
+
     public System.Collections.Generic.List<BackupJob> GetAllJobs()
     {
         var result = new System.Collections.Generic.List<BackupJob>();
@@ -210,7 +210,7 @@ public class JobRepository
         }
 
         return result;
-    }  
+    }
 }
 
 
