@@ -3,9 +3,9 @@ using Logger.Interface;
 
 namespace Logger.Service;
 
-public class DailyLogsService: ILogger
+public class DailyLogsService : ILogger
 {
-    public void WriteInFile<T>(string path, T logData) where T : LogData 
+    public void WriteInFile<T>(string path, T logData) where T : LogData
     {
         string? directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory))
@@ -18,15 +18,15 @@ public class DailyLogsService: ILogger
         try
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
-            
+
             string jsonString = JsonSerializer.Serialize(logData, options);
-            
+
             using (StreamWriter outputFile = new StreamWriter(fullPath, append: true))
             {
                 outputFile.WriteLine(jsonString);
             }
         }
-        catch (Exception exception)
+        catch
         {
             throw;
         }

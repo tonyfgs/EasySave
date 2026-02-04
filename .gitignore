@@ -519,3 +519,7 @@ fabric.properties
 ### EasySave ###
 # Workspace folder (personal notes, drafts, working documents)
 workspace/
+
+# Claude 
+.claude
+CLAUDE.md
