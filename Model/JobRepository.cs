@@ -1,4 +1,5 @@
 ﻿namespace Model;
+
 using System;
 using System.IO;
 using System.Text.Json;
