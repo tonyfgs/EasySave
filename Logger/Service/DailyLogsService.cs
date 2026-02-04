@@ -15,20 +15,15 @@ public class DailyLogsService : ILogger
         string fileName = $"{DateTime.Now:yyyy-MM-dd}.json";
         string fullPath = Path.Combine(directory!, fileName);
 
-        try
-        {
-            var options = new JsonSerializerOptions { WriteIndented = true };
+    
+        var options = new JsonSerializerOptions { WriteIndented = true };
 
-            string jsonString = JsonSerializer.Serialize(logData, options);
+        string jsonString = JsonSerializer.Serialize(logData, options);
 
-            using (StreamWriter outputFile = new StreamWriter(fullPath, append: true))
-            {
-                outputFile.WriteLine(jsonString);
-            }
-        }
-        catch
+        using (StreamWriter outputFile = new StreamWriter(fullPath, append: true))
         {
-            throw;
+            outputFile.WriteLine(jsonString);
         }
+       
     }
 }

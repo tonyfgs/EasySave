@@ -1,9 +1,6 @@
-﻿namespace Model;
+﻿using System.Text.Json;
 
-using System;
-using System.IO;
-using System.Text.Json;
-using System.Linq;
+namespace Model;
 
 public class JobRepository
 {
@@ -164,7 +161,7 @@ public class JobRepository
         }
         catch
         {
-            return null;
+            return default;
         }
     }
 
@@ -184,9 +181,9 @@ public class JobRepository
         }
     }
 
-    public System.Collections.Generic.List<BackupJob>? GetAllJobs()
+    public List<BackupJob>? GetAllJobs()
     {
-        var result = new System.Collections.Generic.List<BackupJob>();
+        var result = new List<BackupJob>();
         try
         {
             var files = Directory.EnumerateFiles(PathDest, "*.json", SearchOption.TopDirectoryOnly);
