@@ -1,5 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console", "Console\Console.csproj", "{CCC2FF92-FC13-49D8-8E1F-0EAF367A8409}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A94590A3-7ACC-46B1-BDBA-234C9E4FF279}"
@@ -10,6 +11,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Logger", "Logger\Logger.csproj", "{9B462E08-9B34-4C46-A611-7458A14BB656}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Model", "Model\Model.csproj", "{30B01CA0-6AEE-485D-9E9D-8EA0B66538ED}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{BC03637D-25F2-45DF-994D-A2B98BDBBEDE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelTest", "Test\ModelTest\ModelTest.csproj", "{FE9500ED-538A-4684-8399-7F5A279D03D1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,5 +34,12 @@ Global
 		{30B01CA0-6AEE-485D-9E9D-8EA0B66538ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{30B01CA0-6AEE-485D-9E9D-8EA0B66538ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{30B01CA0-6AEE-485D-9E9D-8EA0B66538ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE9500ED-538A-4684-8399-7F5A279D03D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE9500ED-538A-4684-8399-7F5A279D03D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE9500ED-538A-4684-8399-7F5A279D03D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE9500ED-538A-4684-8399-7F5A279D03D1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FE9500ED-538A-4684-8399-7F5A279D03D1} = {BC03637D-25F2-45DF-994D-A2B98BDBBEDE}
 	EndGlobalSection
 EndGlobal

@@ -1,6 +1,6 @@
 @startuml
 scale 0.22
-title EasySave v1.0 Class Diagram - DDD / Clean Architecture (Final)
+title EasySave v1.0 Class Diagram
 
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
@@ -12,12 +12,12 @@ hide empty members
 skinparam class {
   BackgroundColor<<interface>> LightBlue
   BackgroundColor<<port>> LightBlue
-  BackgroundColor<<singleton>> LightGreen
   BackgroundColor<<enumeration>> LightYellow
-  BackgroundColor<<facade>> LightCoral
-  BackgroundColor<<marker>> LightGray
+  BackgroundColor<<AggregateRoot>> #FFDAB9
   BackgroundColor<<Entity>> White
   BackgroundColor<<ValueObject>> Wheat
+  BackgroundColor<<DomainService>> #E8D0FF
+  BackgroundColor<<DTO>> #F0F0F0
   BorderColor Black
   ArrowColor Black
 }
@@ -48,42 +48,92 @@ package "Domain" #FEFECE {
     INACTIVE
     ACTIVE
     END
+    ERROR
   }
 
-  class BackupJob <<Entity>> {
-    + {static} MAX_JOBS: int = 5
+  class BackupJob <<AggregateRoot>> {
     - id: int
     - name: string
     - sourcePath: string
     - targetPath: string
     - type: BackupType
-    - lastFullBackupDate: DateTime
+    - lastFullBackupDate: DateTime?
     - createdDate: DateTime
-    - modifiedDate: DateTime
+    + BackupJob(id: int, name: string,\n\t sourcePath: string, targetPath: string,\n\t type: BackupType)
     + GetId(): int
     + GetName(): string
     + GetSourcePath(): string
     + GetTargetPath(): string
     + GetType(): BackupType
-    + UpdateLastFullBackup(date: DateTime): void
+    + GetLastFullBackupDate(): DateTime?
+    + Validate(): void
+    + IsFileModifiedSinceLastFull(file: FileDescriptor): bool
+    + MarkFullBackupCompleted(date: DateTime): void
   }
 
   class FileDescriptor <<ValueObject>> {
-    + Path: string
-    + Size: long
-    + LastModified: DateTime
+    - path: string
+    - size: long
+    - lastModified: DateTime
+    + FileDescriptor(path: string, size: long,\n\t lastModified: DateTime)
+    + GetPath(): string
+    + GetSize(): long
+    + GetLastModified(): DateTime
+    + Equals(other: object): bool
+    + GetHashCode(): int
   }
 
   class BackupResult <<ValueObject>> {
-    + Success: bool
-    + Message: string
-    + FilesProcessed: int
-    + BytesTransferred: long
-    + Duration: TimeSpan
-    + Errors: IReadOnlyList<string>
+    - success: bool
+    - filesProcessed: int
+    - bytesTransferred: long
+    - duration: TimeSpan
+    - errors: IReadOnlyList<string>
+    + {static} Ok(filesProcessed: int,\n\t bytesTransferred: long,\n\t duration: TimeSpan): BackupResult
+    + {static} Fail(errors: List<string>,\n\t duration: TimeSpan): BackupResult
+    + IsSuccess(): bool
+    + GetFilesProcessed(): int
+    + GetBytesTransferred(): long
+    + GetDuration(): TimeSpan
+    + GetErrors(): IReadOnlyList<string>
   }
 
-  class StateInfo <<ValueObject>> {
+  interface IBackupStrategy <<interface>> {
+    + SelectFiles(job: BackupJob,\n\t files: IReadOnlyList<FileDescriptor>):\n\t IReadOnlyList<FileDescriptor>
+  }
+
+  class FullBackupStrategy {
+    + SelectFiles(job: BackupJob,\n\t files: IReadOnlyList<FileDescriptor>):\n\t IReadOnlyList<FileDescriptor>
+  }
+
+  class DifferentialBackupStrategy {
+    + SelectFiles(job: BackupJob,\n\t files: IReadOnlyList<FileDescriptor>):\n\t IReadOnlyList<FileDescriptor>
+  }
+
+  class BackupDomainService <<DomainService>> {
+    + ValidateJobLimit(currentCount: int,\n\t maxJobs: int): void
+    + SelectFilesForBackup(job: BackupJob,\n\t files: IReadOnlyList<FileDescriptor>,\n\t strategy: IBackupStrategy):\n\t IReadOnlyList<FileDescriptor>
+  }
+
+  class DomainException {
+    + DomainException(message: string)
+  }
+
+  class JobLimitExceededException {
+    + JobLimitExceededException(max: int)
+  }
+
+  class InvalidBackupJobException {
+    + InvalidBackupJobException(reason: string)
+  }
+}
+
+' ===== APPLICATION LAYER =====
+package "Application" #E8F5E9 {
+
+  ' --- DTOs (Application concerns, not Domain) ---
+
+  class StateSnapshot <<DTO>> {
     + Name: string
     + Timestamp: DateTime
     + State: JobState
@@ -96,107 +146,92 @@ package "Domain" #FEFECE {
     + CurrentTargetFilePath: string
   }
 
-  class TransferInfo <<ValueObject>> {
+  class TransferLog <<DTO>> {
     + Timestamp: DateTime
     + BackupJobName: string
     + SourceFilePath: string
     + TargetFilePath: string
     + FileSize: long
     + TransferTimeMs: long
-    + EncryptionTimeMs: long
   }
 
-  interface IDomainEvent <<marker>> {
+  class JobExecutionResult <<DTO>> {
+    + JobId: int
+    + Result: BackupResult
+  }
+
+  ' --- Application Events (not Domain Events — infrastructure notification) ---
+
+  class TransferCompletedEvent {
+    + Transfer: TransferLog
+    + TransferCompletedEvent(transfer: TransferLog)
   }
 
   class StateChangedEvent {
-    + State: StateInfo
+    + Snapshot: StateSnapshot
+    + StateChangedEvent(snapshot: StateSnapshot)
   }
 
-  class TransferCompletedEvent {
-    + Transfer: TransferInfo
+  interface IEventHandler<T> <<interface>> {
+    + Handle(event: T): void
   }
 
-  interface IBackupStrategy <<interface>> {
-    + SelectFiles(files: List<FileDescriptor>,\n\t lastFullBackupDate: DateTime): List<FileDescriptor>
+  class TransferCompletedHandler {
+    - logger: ITransferLogger
+    + TransferCompletedHandler(logger: ITransferLogger)
+    + Handle(event: TransferCompletedEvent): void
   }
 
-  class FullBackupStrategy {
-    + SelectFiles(files: List<FileDescriptor>,\n\t lastFullBackupDate: DateTime): List<FileDescriptor>
+  class StateChangedHandler {
+    - stateManager: IStateManager
+    + StateChangedHandler(stateManager: IStateManager)
+    + Handle(event: StateChangedEvent): void
   }
 
-  class DifferentialBackupStrategy {
-    + SelectFiles(files: List<FileDescriptor>,\n\t lastFullBackupDate: DateTime): List<FileDescriptor>
+  interface IEventBus <<port>> {
+    + Publish<T>(event: T): void
+    + Subscribe<T>(handler: IEventHandler<T>): void
   }
-}
 
-' ===== APPLICATION LAYER =====
-package "Application" #E8F5E9 {
-
-  ' --- Ports ---
+  ' --- Ports (Interfaces for Infrastructure) ---
 
   interface IJobRepository <<port>> {
     + Save(job: BackupJob): void
     + Delete(id: int): void
     + GetAll(): List<BackupJob>
-    + GetById(id: int): BackupJob
+    + GetById(id: int): BackupJob?
     + Update(job: BackupJob): void
+    + Count(): int
   }
 
-  interface IStateStore <<port>> {
-    + UpdateState(state: StateInfo): void
-    + GetCurrentState(): List<StateInfo>
-    + Save(): void
-    + Clear(): void
+  interface IStateManager <<port>> {
+    + UpdateState(snapshot: StateSnapshot): void
+    + GetAllStates(): List<StateSnapshot>
+    + ClearAll(): void
   }
 
-  interface ILogger <<port>> {
-    + Log(info: TransferInfo): void
-    + SetLogPath(path: string): void
-    + Close(): void
+  interface ITransferLogger <<port>> {
+    + LogTransfer(log: TransferLog): void
   }
 
   interface IFileSystemGateway <<port>> {
     + EnumerateFiles(path: string): List<FileDescriptor>
-    + EnsureDirectory(path: string): bool
-    + CopyFile(source: string, target: string): bool
+    + EnsureDirectory(path: string): void
+    + CopyFile(source: string, target: string): long
     + Exists(path: string): bool
   }
 
   interface IPathAdapter <<port>> {
-    + ConvertToUNC(path: string): string
-    + ConvertFromUNC(path: string): string
+    + ToUNC(path: string): string
     + IsValidPath(path: string): bool
   }
 
-  interface IBackupStrategyFactory <<port>> {
-    + Create(type: BackupType): IBackupStrategy
+  interface ILanguageConfig <<port>> {
+    + GetLanguage(): Language
+    + SetLanguage(lang: Language): void
   }
 
-  interface IEventPublisher <<port>> {
-    + Publish(event: IDomainEvent): void
-    + Subscribe(handler: IDomainEventHandler): void
-  }
-
-  ' --- Event Handlers ---
-
-  interface IDomainEventHandler <<interface>> {
-    + Handle(event: IDomainEvent): void
-  }
-
-  class TransferCompletedEventHandler {
-    - logger: ILogger
-    + TransferCompletedEventHandler(logger: ILogger)
-    + Handle(event: IDomainEvent): void
-  }
-
-  class StateChangedEventHandler {
-    - stateStore: IStateStore
-    + StateChangedEventHandler(stateStore: IStateStore)
-    + Handle(event: IDomainEvent): void
-  }
-
-  ' --- ProgressTracker ---
+  ' --- Application Services ---
 
   class ProgressTracker {
     - totalFiles: int
@@ -204,40 +239,47 @@ package "Application" #E8F5E9 {
     - totalBytes: long
     - processedBytes: long
     + Initialize(files: List<FileDescriptor>): void
-    + UpdateProgress(file: FileDescriptor): void
-    + BuildState(jobName: string): StateInfo
+    + FileProcessed(file: FileDescriptor): void
+    + BuildSnapshot(jobName: string): StateSnapshot
     + GetProgress(): int
-    + GetRemainingFiles(): int
-    + GetRemainingBytes(): long
     + Reset(): void
   }
 
-  ' --- BackupOrchestrator (single-job execution) ---
-
-  class BackupOrchestrator {
-    - fileSystem: IFileSystemGateway
-    - pathAdapter: IPathAdapter
-    - strategyFactory: IBackupStrategyFactory
-    - eventPublisher: IEventPublisher
-    - tracker: ProgressTracker
-    + Execute(job: BackupJob): BackupResult
-    - EnumerateSourceFiles(sourcePath: string): List<FileDescriptor>
-    - SelectFilesToBackup(job: BackupJob,\n\t files: List<FileDescriptor>): List<FileDescriptor>
-    - CopyFiles(files: List<FileDescriptor>,\n\t job: BackupJob): void
-    - PublishTransferCompleted(job: BackupJob,\n\t file: FileDescriptor, transferTimeMs: long): void
-    - PublishStateChanged(job: BackupJob): void
+  class BackupStrategyFactory <<factory>> {
+    + Create(type: BackupType): IBackupStrategy
   }
 
-  ' --- BackupApplicationService (multi-job coordination) ---
+  class BackupExecutor {
+    - fileSystem: IFileSystemGateway
+    - pathAdapter: IPathAdapter
+    - eventBus: IEventBus
+    - domainService: BackupDomainService
+    - tracker: ProgressTracker
+    + Execute(job: BackupJob,\n\t strategy: IBackupStrategy): BackupResult
+  }
 
-  class BackupApplicationService {
+  class JobManagementService {
     - repository: IJobRepository
-    - orchestrator: BackupOrchestrator
-    + CreateJob(name: string, source: string,\n\t target: string, type: BackupType): void
-    + ExecuteJobs(jobIds: List<int>): List<BackupResult>
+    - domainService: BackupDomainService
+    + CreateJob(name: string, source: string,\n\t target: string, type: BackupType): BackupJob
     + ListJobs(): List<BackupJob>
     + DeleteJob(id: int): void
-    + ModifyJob(id: int, job: BackupJob): void
+    + ModifyJob(id: int, name: string,\n\t source: string, target: string,\n\t type: BackupType): void
+  }
+
+  class BackupExecutionService {
+    - repository: IJobRepository
+    - executor: BackupExecutor
+    - strategyFactory: BackupStrategyFactory
+    + ExecuteJobs(jobIds: List<int>): List<JobExecutionResult>
+    + ExecuteAllJobs(): List<JobExecutionResult>
+  }
+
+  class LanguageApplicationService {
+    - languageConfig: ILanguageConfig
+    + LanguageApplicationService(languageConfig: ILanguageConfig)
+    + GetCurrentLanguage(): Language
+    + ChangeLanguage(lang: Language): void
   }
 }
 
@@ -251,16 +293,6 @@ package "EasyLog (DLL)" #E0F7FA {
   class DailyLogsService {
     + WriteInFile<T>(path: string, logData: T): void
   }
-
-  class LogData {
-    + Timestamp: string
-    + BackupJobName: string
-    + SourceFilePath: string
-    + TargetFilePath: string
-    + FileSize: long
-    + TransferTimeMs: long
-    + EncryptionTimeMs: long
-  }
 }
 
 ' ===== INFRASTRUCTURE LAYER =====
@@ -268,160 +300,148 @@ package "Infrastructure" #E3F2FD {
 
   class FileJobRepository {
     - filePath: string
-    - syncLock: object
     + Save(job: BackupJob): void
     + Delete(id: int): void
     + GetAll(): List<BackupJob>
-    + GetById(id: int): BackupJob
+    + GetById(id: int): BackupJob?
     + Update(job: BackupJob): void
-    - PersistJobs(): void
-    - LoadJobs(): void
+    + Count(): int
+    - PersistToDisk(): void
+    - LoadFromDisk(): void
   }
 
-  class FileStateStore {
+  class JsonStateManager {
     - filePath: string
-    - states: List<StateInfo>
-    - syncLock: object
-    + UpdateState(state: StateInfo): void
-    + GetCurrentState(): List<StateInfo>
-    + Save(): void
-    + Clear(): void
+    - states: List<StateSnapshot>
+    + UpdateState(snapshot: StateSnapshot): void
+    + GetAllStates(): List<StateSnapshot>
+    + ClearAll(): void
   }
 
-  class JsonLogger {
-    - filePath: string
+  class JsonTransferLogger {
+    - logDirectory: string
     - easyLogger: IEasyLogger
-    + Log(info: TransferInfo): void
-    + SetLogPath(path: string): void
-    + Close(): void
+    + LogTransfer(log: TransferLog): void
+    - GetDailyLogPath(): string
   }
 
-  class XmlLogger {
-    - filePath: string
-    + Log(info: TransferInfo): void
-    + SetLogPath(path: string): void
-    + Close(): void
+  class XmlTransferLogger {
+    - logDirectory: string
+    - easyLogger: IEasyLogger
+    + LogTransfer(log: TransferLog): void
+    - GetDailyLogPath(): string
   }
 
   class LocalFileSystemGateway {
     + EnumerateFiles(path: string): List<FileDescriptor>
-    + EnsureDirectory(path: string): bool
-    + CopyFile(source: string, target: string): bool
+    + EnsureDirectory(path: string): void
+    + CopyFile(source: string, target: string): long
     + Exists(path: string): bool
   }
 
-  class CanonicalPathAdapter {
-    + ConvertToUNC(path: string): string
-    + ConvertFromUNC(path: string): string
+  class UNCPathAdapter {
+    + ToUNC(path: string): string
     + IsValidPath(path: string): bool
   }
 
-  class BackupStrategyFactory {
-    + Create(type: BackupType): IBackupStrategy
-  }
-
-  class InProcessEventPublisher {
-    - handlers: List<IDomainEventHandler>
-    + Publish(event: IDomainEvent): void
-    + Subscribe(handler: IDomainEventHandler): void
-  }
-
-  class ConfigurationManager {
+  class AppConfiguration {
     - configPath: string
+    - logFormat: LogFormat
+    - language: Language
+    - logDirectory: string
     + GetLogFormat(): LogFormat
     + SetLogFormat(format: LogFormat): void
     + GetLanguage(): Language
     + SetLanguage(lang: Language): void
-    + GetLogPath(): string
-    + SetLogPath(path: string): void
-    + Save(): void
+    + GetLogDirectory(): string
     + Load(): void
+    + Save(): void
   }
 
-  class LoggerFactory {
-    - configManager: ConfigurationManager
-    + CreateLogger(): ILogger
+  class TransferLoggerFactory <<factory>> {
+    - config: AppConfiguration
+    - easyLogger: IEasyLogger
+    + Create(): ITransferLogger
+  }
+
+  class InProcessEventBus {
+    - handlers: Dictionary<Type, List<object>>
+    + Publish<T>(event: T): void
+    + Subscribe<T>(handler: IEventHandler<T>): void
   }
 }
 
 ' ===== PRESENTATION LAYER (CLI) =====
 package "Presentation (CLI)" #FFF3E0 {
 
-  class ParsedCommand {
-    + CommandName: string
-    + Arguments: List<string>
-    + IsValid: bool
-    + ErrorMessage: string
+  class CommandResult <<ValueObject>> {
+    - success: bool
+    - errorMessage: string
+    + {static} Ok(): CommandResult
+    + {static} Fail(message: string): CommandResult
+    + IsSuccess(): bool
+    + GetErrorMessage(): string
   }
 
   interface ICommand <<interface>> {
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    + Execute(args: List<string>): CommandResult
   }
 
   class CreateJobCommand {
-    - appService: BackupApplicationService
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    - jobService: JobManagementService
+    + Execute(args: List<string>): CommandResult
   }
 
   class ExecuteJobCommand {
-    - appService: BackupApplicationService
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    - executionService: BackupExecutionService
+    + Execute(args: List<string>): CommandResult
   }
 
   class DeleteJobCommand {
-    - appService: BackupApplicationService
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    - jobService: JobManagementService
+    + Execute(args: List<string>): CommandResult
   }
 
   class ListJobsCommand {
-    - appService: BackupApplicationService
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    - jobService: JobManagementService
+    + Execute(args: List<string>): CommandResult
   }
 
   class ModifyJobCommand {
-    - appService: BackupApplicationService
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    - jobService: JobManagementService
+    + Execute(args: List<string>): CommandResult
   }
 
   class ChangeLanguageCommand {
-    - languageManager: LanguageManager
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    - languageService: LanguageApplicationService
+    + Execute(args: List<string>): CommandResult
   }
 
   class ExitCommand {
-    + Execute(command: ParsedCommand): void
-    + CanExecute(command: ParsedCommand): bool
+    + Execute(args: List<string>): CommandResult
   }
 
-  class CommandLineParser {
-    + Parse(args: string[]): ParsedCommand
-    + ParseJobRange(arg: string): List<int>
-    + ParseJobList(arg: string): List<int>
+  class InputParser <<utility>> {
+    + ParseJobRange(input: string): List<int>
+    + ParseJobList(input: string): List<int>
   }
 
   class LanguageManager {
-    - currentLanguage: Language
+    - languageService: LanguageApplicationService
     - resources: Dictionary<string, Dictionary<Language, string>>
+    + LanguageManager(languageService: LanguageApplicationService)
     + GetString(key: string): string
-    + SetLanguage(lang: Language): void
     + GetCurrentLanguage(): Language
   }
 
   class ConsoleUI {
-    - parser: CommandLineParser
     - languageManager: LanguageManager
+    - inputParser: InputParser
     - commands: Dictionary<string, ICommand>
     + Run(): void
-    + ShowMenu(): void
-    + GetUserInput(): string
-    - ProcessCommand(command: ParsedCommand): void
+    - ShowMenu(): void
+    - ReadInput(): string
+    - DispatchCommand(name: string,\n\t args: List<string>): void
   }
 }
 
@@ -430,65 +450,94 @@ package "Composition Root" #F3E5F5 {
 
   class Program {
     + {static} Main(args: string[]): void
-    - {static} BuildCompositionRoot(): void
+    - {static} ConfigureServices(): void
   }
 }
 
-' ===== RELATIONS: Domain =====
-IDomainEvent <|.. StateChangedEvent
-IDomainEvent <|.. TransferCompletedEvent
+' ========================================================
+' RELATIONS
+' ========================================================
+
+' --- Domain internal ---
 IBackupStrategy <|.. FullBackupStrategy
 IBackupStrategy <|.. DifferentialBackupStrategy
-BackupJob --> BackupType
-StateInfo --> JobState
-StateChangedEvent --> StateInfo
-TransferCompletedEvent --> TransferInfo
+BackupJob "1" --> "1" BackupType : has
+DifferentialBackupStrategy ..> BackupJob : calls IsFileModifiedSinceLastFull()
+BackupDomainService ..> BackupJob : validates
+BackupDomainService ..> IBackupStrategy : delegates to
+BackupDomainService ..> FileDescriptor : filters
+DomainException <|-- JobLimitExceededException
+DomainException <|-- InvalidBackupJobException
+BackupJob ..> InvalidBackupJobException : throws
+BackupDomainService ..> JobLimitExceededException : throws
 
-' ===== RELATIONS: Application =====
-IDomainEventHandler <|.. TransferCompletedEventHandler
-IDomainEventHandler <|.. StateChangedEventHandler
-TransferCompletedEventHandler --> ILogger
-StateChangedEventHandler --> IStateStore
+' --- Application: BackupExecutor publishes events, does NOT call loggers/state directly ---
+BackupExecutor "1" --> "1" IFileSystemGateway : reads/copies via
+BackupExecutor "1" --> "1" IPathAdapter : converts paths via
+BackupExecutor "1" --> "1" IEventBus : publishes events via
+BackupExecutor "1" --> "1" BackupDomainService : delegates selection to
+BackupExecutor "1" --> "1" ProgressTracker : tracks progress with
+BackupExecutor ..> BackupJob : receives
+BackupExecutor ..> BackupResult : returns
+BackupExecutor ..> FileDescriptor : processes
+BackupExecutor ..> TransferCompletedEvent : publishes
+BackupExecutor ..> StateChangedEvent : publishes
+BackupExecutor ..> IBackupStrategy : receives
 
-BackupOrchestrator --> IFileSystemGateway
-BackupOrchestrator --> IPathAdapter
-BackupOrchestrator --> IBackupStrategyFactory
-BackupOrchestrator --> IEventPublisher
-BackupOrchestrator --> ProgressTracker
-BackupOrchestrator --> BackupJob
-BackupOrchestrator --> BackupResult
-BackupOrchestrator --> FileDescriptor
+' --- Application: Event handlers (typed, no runtime cast) ---
+"IEventHandler<TransferCompletedEvent>" <|.. TransferCompletedHandler
+"IEventHandler<StateChangedEvent>" <|.. StateChangedHandler
+TransferCompletedHandler "1" --> "1" ITransferLogger : logs via
+StateChangedHandler "1" --> "1" IStateManager : persists via
+TransferCompletedEvent "1" *-- "1" TransferLog : carries
+StateChangedEvent "1" *-- "1" StateSnapshot : carries
 
-BackupApplicationService --> IJobRepository
-BackupApplicationService --> BackupOrchestrator
+' --- Application: Services ---
+JobManagementService "1" --> "1" IJobRepository : persists via
+JobManagementService "1" --> "1" BackupDomainService : validates with
 
-ProgressTracker --> FileDescriptor
-ProgressTracker --> StateInfo
+BackupExecutionService "1" --> "1" IJobRepository : reads from
+BackupExecutionService "1" --> "1" BackupExecutor : delegates to
+BackupExecutionService "1" --> "1" BackupStrategyFactory : resolves strategy via
+BackupExecutionService ..> JobExecutionResult : returns
 
-' ===== RELATIONS: EasyLog DLL =====
-IEasyLogger <|.. DailyLogsService
-DailyLogsService --> LogData
+ProgressTracker ..> FileDescriptor : tracks
+ProgressTracker ..> StateSnapshot : builds
 
-' ===== RELATIONS: Infrastructure implements Ports =====
-IJobRepository <|.. FileJobRepository
-IStateStore <|.. FileStateStore
-ILogger <|.. JsonLogger
-ILogger <|.. XmlLogger
-IFileSystemGateway <|.. LocalFileSystemGateway
-IPathAdapter <|.. CanonicalPathAdapter
-IBackupStrategyFactory <|.. BackupStrategyFactory
-IEventPublisher <|.. InProcessEventPublisher
-
-JsonLogger --> IEasyLogger : delegates to
-
-InProcessEventPublisher "1" o-- "*" IDomainEventHandler
 BackupStrategyFactory ..> IBackupStrategy : creates
-LoggerFactory --> ConfigurationManager
-LoggerFactory ..> ILogger : creates
-ConfigurationManager --> LogFormat
-ConfigurationManager --> Language
+BackupStrategyFactory ..> BackupType : receives
+JobExecutionResult "1" *-- "1" BackupResult : carries
+StateSnapshot "1" --> "1" JobState : has
 
-' ===== RELATIONS: Presentation =====
+' --- EasyLog DLL ---
+IEasyLogger <|.. DailyLogsService
+
+' --- Infrastructure implements Ports ---
+IJobRepository <|.. FileJobRepository
+IStateManager <|.. JsonStateManager
+ITransferLogger <|.. JsonTransferLogger
+ITransferLogger <|.. XmlTransferLogger
+IFileSystemGateway <|.. LocalFileSystemGateway
+IPathAdapter <|.. UNCPathAdapter
+ILanguageConfig <|.. AppConfiguration
+
+JsonTransferLogger "1" --> "1" IEasyLogger : delegates to
+XmlTransferLogger "1" --> "1" IEasyLogger : delegates to
+
+IEventBus <|.. InProcessEventBus
+InProcessEventBus "1" o-- "0..*" "IEventHandler<T>" : registers
+
+TransferLoggerFactory "1" --> "1" AppConfiguration : reads format from
+TransferLoggerFactory "1" --> "1" IEasyLogger : injects into loggers
+TransferLoggerFactory ..> ITransferLogger : creates
+
+AppConfiguration "1" --> "1" LogFormat : stores
+AppConfiguration "1" --> "1" Language : stores
+
+FileJobRepository "1" *-- "0..*" BackupJob : stores
+JsonStateManager "1" *-- "*" StateSnapshot : stores
+
+' --- Presentation ---
 ICommand <|.. CreateJobCommand
 ICommand <|.. ExecuteJobCommand
 ICommand <|.. DeleteJobCommand
@@ -497,44 +546,118 @@ ICommand <|.. ModifyJobCommand
 ICommand <|.. ChangeLanguageCommand
 ICommand <|.. ExitCommand
 
-ConsoleUI "1" o-- "*" ICommand
-ConsoleUI --> CommandLineParser
-ConsoleUI --> LanguageManager
-CommandLineParser --> ParsedCommand
+ConsoleUI "1" o-- "1..*" ICommand : dispatches to
+ConsoleUI "1" --> "1" InputParser : parses input with
+ConsoleUI "1" --> "1" LanguageManager : translates with
 
-CreateJobCommand --> BackupApplicationService
-ExecuteJobCommand --> BackupApplicationService
-DeleteJobCommand --> BackupApplicationService
-ListJobsCommand --> BackupApplicationService
-ModifyJobCommand --> BackupApplicationService
-ChangeLanguageCommand --> LanguageManager
-LanguageManager --> Language
+CreateJobCommand "1" --> "1" JobManagementService : calls
+ExecuteJobCommand "1" --> "1" BackupExecutionService : calls
+DeleteJobCommand "1" --> "1" JobManagementService : calls
+ListJobsCommand "1" --> "1" JobManagementService : calls
+ModifyJobCommand "1" --> "1" JobManagementService : calls
+ChangeLanguageCommand "1" --> "1" LanguageApplicationService : changes language via
+LanguageApplicationService "1" --> "1" ILanguageConfig : reads/persists via
+LanguageManager "1" --> "1" LanguageApplicationService : reads current language via
+LanguageManager ..> Language : uses type
 
-' ===== RELATIONS: Composition Root =====
-Program --> ConsoleUI
-Program --> BackupApplicationService
-Program --> BackupOrchestrator
-Program --> ConfigurationManager
-Program --> LoggerFactory
-Program --> InProcessEventPublisher
-Program --> TransferCompletedEventHandler
-Program --> StateChangedEventHandler
+' --- Composition Root ---
+Program ..> ConsoleUI : assembles
+Program ..> JobManagementService : assembles
+Program ..> BackupExecutionService : assembles
+Program ..> BackupExecutor : assembles
+Program ..> LanguageApplicationService : assembles
+Program ..> AppConfiguration : loads
+Program ..> TransferLoggerFactory : uses
+Program ..> InProcessEventBus : assembles
+Program ..> TransferCompletedHandler : assembles
+Program ..> StateChangedHandler : assembles
 
-' ===== NOTES =====
-note right of CanonicalPathAdapter
-  Stateless, thread-safe.
-  Normalizes paths (env vars, relative -> absolute, separators).
-  Detects UNC vs local paths automatically.
+
+' ========================================================
+' NOTES
+' ========================================================
+
+note right of BackupJob
+  **Aggregate Root**: protects business invariants only.
+  Validate() throws InvalidBackupJobException if:
+  - name is empty
+  - source or target path is empty
+  - source == target
+  Technical path validation (syntax, UNC format)
+  is handled by IPathAdapter (infrastructure concern).
+  IsFileModifiedSinceLastFull() encapsulates the
+  differential backup business rule using
+  the entity's own lastFullBackupDate state.
 end note
 
 note bottom of IBackupStrategy
-  Strategy pattern: selects files
-  based on backup type (full vs differential).
+  **Strategy pattern**: polymorphic file selection.
+  FullBackupStrategy returns all files.
+  DifferentialBackupStrategy delegates to
+  BackupJob.IsFileModifiedSinceLastFull()
+  for each file, keeping domain logic in the entity.
 end note
 
 note bottom of FileDescriptor
-  Value Object: immutable.
-  Represents a file to backup.
+  **Immutable Value Object**.
+  Equality defined by Path + Size + LastModified.
+  No identity — two descriptors with same
+  values are considered equal.
+end note
+
+note right of BackupDomainService
+  **Stateless Domain Service**.
+  ValidateJobLimit() enforces MAX_JOBS rule
+  (configurable, not hardcoded in entity).
+  Orchestrates strategy-based file selection.
+end note
+
+note bottom of StateSnapshot
+  Application-layer DTO, not a domain concept.
+  Represents the serializable state for
+  real-time progress reporting.
+  Persisted immediately on each update
+  (no separate Save() call needed).
+end note
+
+note bottom of TransferLog
+  Application-layer DTO for log entries.
+  No EncryptionTimeMs in v1.0 (YAGNI).
+  Will be extended in v2.0 when CryptoSoft
+  integration is added.
+end note
+
+note bottom of IEventBus
+  **Typed event bus**: Publish<T>/Subscribe<T>
+  use generics; callers and handlers do not
+  perform runtime casts.
+  IEventHandler<T>.Handle(event: T) is type-safe.
+  Trade-off: dispatch infrastructure may still
+  use internal casts (hidden from API consumers),
+  unlike the original IDomainEvent + cast approach.
+end note
+
+note bottom of InProcessEventBus
+  **Open/Closed**: generic Dictionary<Type, List>
+  allows adding new event types and multiple
+  handlers per type without modifying the bus.
+  Subscribe<T>() registers, Publish<T>() resolves
+  and dispatches. Trade-off: internal cast from
+  object to IEventHandler<T> at runtime, but the
+  public API remains fully type-safe.
+end note
+
+note right of ITransferLogger
+  **Interface Segregation**: single responsibility.
+  Only LogTransfer(). No SetLogPath() or Close().
+  File path management is an infrastructure
+  concern handled internally by implementations.
+end note
+
+note bottom of JsonStateManager
+  UpdateState() persists to disk immediately
+  (real-time requirement from specification).
+  No separate Save() method needed.
 end note
 
 @enduml
