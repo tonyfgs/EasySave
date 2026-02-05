@@ -1,0 +1,49 @@
+@startuml
+!theme plain
+autonumber
+
+title Diagramme de Séquence Système - UC02: Exécuter une Sauvegarde
+
+actor "Utilisateur" as User
+participant ":EasySave" as System
+
+note over System: {Pré-condition: 1 à 5 travaux configurés}
+
+User -> System: sélectionnerExécuterSauvegarde()
+
+alt [Aucun travail configuré]
+    System --> User: afficherErreur("Aucun travail configuré")
+else [Travaux disponibles]
+    System --> User: afficherListeTravaux(travaux[])
+
+    User -> System: sélectionnerTravaux(numéros)
+    note right: Format: "1-3" ou "1;3"
+
+    loop pour chaque travail sélectionné [exécution séquentielle]
+        System --> User: afficherDébutSauvegarde(nomTravail)
+
+        alt [Type = FULL]
+            loop pour chaque fichier source
+                System --> User: afficherProgression(%)
+            end
+        else [Type = DIFFERENTIAL]
+            loop pour chaque fichier modifié depuis dernière sauvegarde complète
+                System --> User: afficherProgression(%)
+            end
+        end
+
+        alt [Sauvegarde réussie]
+            System --> User: afficherSuccès(nomTravail, fichiersCopies, tailleTotal, tempsTotal)
+        else [Erreur pendant sauvegarde]
+            System --> User: afficherErreur(message)
+            break
+        end
+    end
+
+    System --> User: afficherRésumé(travaux_exécutés, succès, échecs)
+end
+
+User -> System: retournerMenuPrincipal()
+System --> User: afficherMenuPrincipal()
+
+@enduml

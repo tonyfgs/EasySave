@@ -1,0 +1,44 @@
+@startuml
+!theme plain
+autonumber
+
+title Diagramme de Séquence Système - UC03: Changer la Langue de l'Interface
+
+actor "Utilisateur" as User
+participant ":EasySave" as System
+
+note over System: {Langues supportées: FR, EN}
+
+User -> System: accéderParamètres()
+System --> User: afficherMenuParamètres(langue_actuelle)
+
+User -> System: sélectionnerChangerLangue()
+System --> User: afficherOptionsLangue(FR, EN)
+
+alt [Sélectionner Français]
+    User -> System: sélectionnerLangue(FR)
+
+    alt [Langue déjà en français]
+        System --> User: afficherMessage("Déjà en français")
+    else [Changement effectif]
+        System --> User: afficherConfirmation("Interface en français")
+        System --> User: rafraîchirInterface(FR)
+    end
+
+else [Sélectionner English]
+    User -> System: sélectionnerLangue(EN)
+
+    alt [Already in English]
+        System --> User: displayMessage("Already in English")
+    else [Change effective]
+        System --> User: displayConfirmation("Interface in English")
+        System --> User: refreshInterface(EN)
+    end
+end
+
+note over System, User: Tous les menus et messages\nsont dans la langue sélectionnée
+
+User -> System: retournerMenuPrincipal()
+System --> User: afficherMenuPrincipal(langue)
+
+@enduml
