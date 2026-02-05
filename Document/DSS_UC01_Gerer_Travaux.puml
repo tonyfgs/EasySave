@@ -1,0 +1,108 @@
+@startuml
+!theme plain
+autonumber
+
+title Diagramme de Séquence Système - UC01: Gérer les Travaux de Sauvegarde
+
+actor "Utilisateur" as User
+participant ":EasySave" as System
+
+note over System: {Contrainte: Maximum 5 travaux}
+
+User -> System: accéderGestionTravaux()
+System --> User: afficherMenuGestion(travaux[])
+
+alt [Créer un travail]
+    User -> System: sélectionnerCréerTravail()
+
+    alt [Limite atteinte (5 travaux)]
+        System --> User: afficherErreur("Limite de 5 travaux atteinte")
+    else [Moins de 5 travaux]
+        System --> User: demanderNom()
+        User -> System: saisirNom(nom)
+        System --> User: demanderCheminSource()
+        User -> System: saisirCheminSource(path)
+
+        opt [Chemin source invalide]
+            System --> User: afficherErreur("Chemin source invalide")
+            ref over System, User: Retour saisie chemin source
+        end
+
+        System --> User: demanderCheminCible()
+        User -> System: saisirCheminCible(path)
+
+        opt [Chemin cible invalide]
+            System --> User: afficherErreur("Chemin cible invalide")
+            ref over System, User: Retour saisie chemin cible
+        end
+
+        System --> User: demanderTypeSauvegarde()
+        User -> System: sélectionnerType(FULL|DIFFERENTIAL)
+
+        System --> User: confirmerCréation(nom)
+    end
+
+else [Modifier un travail]
+    User -> System: sélectionnerModifierTravail()
+    System --> User: afficherListeTravaux(travaux[])
+    User -> System: sélectionnerTravail(id)
+
+    alt [Travail inexistant]
+        System --> User: afficherErreur("Travail non trouvé")
+    else [Travail existe]
+        System --> User: afficherDétailsTravail(travail)
+
+        loop tant que modifications non terminées
+            System --> User: afficherOptionsModification()
+            alt [Modifier nom]
+                User -> System: modifierNom(nouveauNom)
+            else [Modifier source]
+                User -> System: modifierSource(nouveauChemin)
+            else [Modifier cible]
+                User -> System: modifierCible(nouveauChemin)
+            else [Modifier type]
+                User -> System: modifierType(nouveauType)
+            else [Terminer modifications]
+                User -> System: validerModifications()
+                break
+            end
+        end
+
+        System --> User: confirmerModification(nom)
+    end
+
+else [Supprimer un travail]
+    User -> System: sélectionnerSupprimerTravail()
+    System --> User: afficherListeTravaux(travaux[])
+    User -> System: sélectionnerTravail(id)
+
+    alt [Travail inexistant]
+        System --> User: afficherErreur("Travail non trouvé")
+    else [Travail existe]
+        System --> User: demanderConfirmation(nom)
+        alt [Confirmation = Oui]
+            User -> System: confirmer(true)
+            System --> User: confirmerSuppression(nom)
+        else [Confirmation = Non]
+            User -> System: confirmer(false)
+            System --> User: annulerSuppression()
+        end
+    end
+
+else [Lister les travaux]
+    User -> System: sélectionnerListerTravaux()
+
+    alt [Aucun travail configuré]
+        System --> User: afficherMessage("Aucun travail configuré")
+    else [Travaux existants]
+        loop pour chaque travail
+            System --> User: afficherTravail(id, nom, source, cible, type)
+        end
+        System --> User: afficherTotal(nombre_travaux)
+    end
+end
+
+User -> System: retournerMenuPrincipal()
+System --> User: afficherMenuPrincipal()
+
+@enduml
