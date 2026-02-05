@@ -15,6 +15,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+      <ProjectReference Include="..\Application\Application.csproj" />
+      <ProjectReference Include="..\Model\Model.csproj" />
+      <ProjectReference Include="..\Shared\Shared.csproj" />
       <ProjectReference Include="..\Logger\Logger.csproj" />
     </ItemGroup>
 
