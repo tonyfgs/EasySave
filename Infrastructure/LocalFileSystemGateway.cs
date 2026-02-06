@@ -33,8 +33,9 @@ public class LocalFileSystemGateway : IFileSystemGateway
         if (!string.IsNullOrEmpty(targetDir))
             Directory.CreateDirectory(targetDir);
 
+        var s = new FileInfo(source).Length;
         File.Copy(source, normalizedTarget, overwrite: true);
-        return new FileInfo(normalizedTarget).Length;
+        return s;
     }
 
     public bool Exists(string path)
