@@ -382,6 +382,57 @@ public class BackupExecutorTests
     }
 
     [Fact]
+    public void Execute_CopyFails_ShouldPublishErrorState()
+    {
+        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new("/src/file1.txt", 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
+            .Throws(new IOException("Disk full"));
+
+        var capturedEvents = new List<StateChangedEvent>();
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
+
+        _executor.Execute(job, strategy);
+
+        var lastSnapshot = capturedEvents.Last().Snapshot;
+        Assert.Equal(JobState.Error, lastSnapshot.State);
+        Assert.Equal(string.Empty, lastSnapshot.CurrentSourceFile);
+    }
+
+    [Fact]
+    public void Execute_PartialFailure_ShouldPublishErrorState()
+    {
+        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new("/src/file1.txt", 100, DateTime.Now),
+            new("/src/file2.txt", 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.SetupSequence(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(100)
+            .Throws(new IOException("Disk full"));
+
+        var capturedEvents = new List<StateChangedEvent>();
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
+
+        _executor.Execute(job, strategy);
+
+        var lastSnapshot = capturedEvents.Last().Snapshot;
+        Assert.Equal(JobState.Error, lastSnapshot.State);
+    }
+
+    [Fact]
     public void Execute_NestedSubdir_ShouldPreserveExactRelativePath()
     {
         var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
@@ -403,5 +454,75 @@ public class BackupExecutorTests
         Assert.NotNull(capturedTarget);
         var expectedTarget = Path.Combine("/dst", "a", "b", "c.txt");
         Assert.Equal(expectedTarget, capturedTarget);
+    }
+
+    [Fact]
+    public void Execute_TrailingSlashInPaths_ShouldNormalizeAndCopySuccessfully()
+    {
+        var sourcePath = Path.GetFullPath("/src/");
+        var targetPath = Path.GetFullPath("/dst/");
+        var job = new BackupJob(1, "TestJob", "/src/", "/dst/", BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(sourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(sourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.FilesProcessed);
+    }
+
+    [Fact]
+    public void Execute_PathNormalization_ShouldResolveRelativeSegments()
+    {
+        var sourcePath = Path.GetFullPath("/src");
+        var targetPath = Path.GetFullPath("/dst");
+        var job = new BackupJob(1, "TestJob", "/src/../src", "/dst/../dst", BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(sourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(sourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.FilesProcessed);
+    }
+
+    [Fact]
+    public void Execute_ShouldCallEnumerateFilesWithNormalizedPath()
+    {
+        var normalizedSource = Path.GetFullPath("/src/");
+        var job = new BackupJob(1, "TestJob", "/src/", "/dst/", BackupType.Full);
+        var strategy = new FullBackupStrategy();
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(normalizedSource)).Returns(new List<FileDescriptor>());
+
+        _executor.Execute(job, strategy);
+
+        _mockFileSystem.Verify(fs => fs.EnumerateFiles(normalizedSource), Times.Once);
+    }
+
+    [Fact]
+    public void Execute_ShouldCallEnsureDirectoryWithNormalizedPath()
+    {
+        var normalizedTarget = Path.GetFullPath("/dst/");
+        var job = new BackupJob(1, "TestJob", "/src/", "/dst/", BackupType.Full);
+        var strategy = new FullBackupStrategy();
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(Path.GetFullPath("/src/"))).Returns(new List<FileDescriptor>());
+
+        _executor.Execute(job, strategy);
+
+        _mockFileSystem.Verify(fs => fs.EnsureDirectory(normalizedTarget), Times.Once);
     }
 }

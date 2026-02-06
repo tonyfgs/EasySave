@@ -7,14 +7,16 @@ public class LocalFileSystemGateway : IFileSystemGateway
 {
     public List<FileDescriptor> EnumerateFiles(string path)
     {
-        if (!Directory.Exists(path))
+        var normalizedPath = Path.GetFullPath(path);
+        if (!Directory.Exists(normalizedPath))
             return new List<FileDescriptor>();
 
-        return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+        return Directory.EnumerateFiles(normalizedPath, "*", SearchOption.AllDirectories)
             .Select(f =>
             {
-                var info = new FileInfo(f);
-                return new FileDescriptor(f, info.Length, info.LastWriteTime);
+                var fullPath = Path.GetFullPath(f);
+                var info = new FileInfo(fullPath);
+                return new FileDescriptor(fullPath, info.Length, info.LastWriteTime);
             })
             .ToList();
     }
@@ -26,12 +28,13 @@ public class LocalFileSystemGateway : IFileSystemGateway
 
     public long CopyFile(string source, string target)
     {
-        var targetDir = Path.GetDirectoryName(target);
+        var normalizedTarget = Path.GetFullPath(target);
+        var targetDir = Path.GetDirectoryName(normalizedTarget);
         if (!string.IsNullOrEmpty(targetDir))
             Directory.CreateDirectory(targetDir);
 
-        File.Copy(source, target, overwrite: true);
-        return new FileInfo(target).Length;
+        File.Copy(source, normalizedTarget, overwrite: true);
+        return new FileInfo(normalizedTarget).Length;
     }
 
     public bool Exists(string path)
