@@ -121,4 +121,35 @@ public class FileJobRepositoryTests : IDisposable
         Assert.Equal(1, repo2.Count());
         Assert.Equal("Persistent", repo2.GetById(1)!.Name);
     }
+
+    [Fact]
+    public void Save_AfterDeletion_ShouldAssignMaxPlusOneId()
+    {
+        IJobRepository repo = new FileJobRepository(_filePath);
+        repo.Save(new BackupJob(0, "Job1", "/s1", "/d1", BackupType.Full));
+        repo.Save(new BackupJob(0, "Job2", "/s2", "/d2", BackupType.Full));
+        repo.Save(new BackupJob(0, "Job3", "/s3", "/d3", BackupType.Full));
+
+        repo.Delete(2);
+        var newJob = new BackupJob(0, "Job4", "/s4", "/d4", BackupType.Full);
+        repo.Save(newJob);
+
+        Assert.Equal(4, newJob.Id);
+        Assert.Equal(3, repo.Count());
+    }
+
+    [Fact]
+    public void Save_AfterDeletingLastJob_ShouldAssignMaxPlusOneId()
+    {
+        IJobRepository repo = new FileJobRepository(_filePath);
+        repo.Save(new BackupJob(0, "Job1", "/s1", "/d1", BackupType.Full));
+        repo.Save(new BackupJob(0, "Job2", "/s2", "/d2", BackupType.Full));
+
+        repo.Delete(2);
+        var newJob = new BackupJob(0, "Job3", "/s3", "/d3", BackupType.Full);
+        repo.Save(newJob);
+
+        Assert.Equal(2, newJob.Id);
+        Assert.Equal(2, repo.Count());
+    }
 }

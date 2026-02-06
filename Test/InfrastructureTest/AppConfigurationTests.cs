@@ -100,4 +100,27 @@ public class AppConfigurationTests : IDisposable
         langConfig.SetLanguage(Language.FR);
         Assert.Equal(Language.FR, langConfig.GetLanguage());
     }
+
+    [Fact]
+    public void SetLanguage_WithoutSave_ShouldNotPersistToNewInstance()
+    {
+        var config1 = new AppConfiguration(_configPath, "/logs");
+        config1.SetLanguage(Language.FR);
+
+        var config2 = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(Language.EN, config2.GetLanguage());
+    }
+
+    [Fact]
+    public void SetLanguage_WithSave_ThenNewInstance_ShouldPersist()
+    {
+        var config1 = new AppConfiguration(_configPath, "/logs");
+        config1.SetLanguage(Language.FR);
+        config1.Save();
+
+        var config2 = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(Language.FR, config2.GetLanguage());
+    }
 }
