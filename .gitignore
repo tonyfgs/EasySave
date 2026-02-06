@@ -520,6 +520,9 @@ fabric.properties
 # Workspace folder (personal notes, drafts, working documents)
 workspace/
 
-# Claude 
+# Claude
 .claude
 CLAUDE.md
+
+# PlantUML
+plantuml.jar
