@@ -26,6 +26,15 @@ public class UNCPathAdapterTests
     }
 
     [Fact]
+    public void ToUNC_WithWindowsDriveLetter_ShouldConvertToAdminShare()
+    {
+        var result = _adapter.ToUNC("C:\\Users\\Jean\\Documents");
+
+        var machineName = Environment.MachineName;
+        Assert.Equal($"\\\\{machineName}\\C$\\Users\\Jean\\Documents", result);
+    }
+
+    [Fact]
     public void IsValidPath_WithValidPath_ShouldReturnTrue()
     {
         Assert.True(_adapter.IsValidPath("/Users/test/backup"));
