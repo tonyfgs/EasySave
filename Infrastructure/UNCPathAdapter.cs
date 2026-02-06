@@ -1,3 +1,4 @@
+using System.Net;
 using Application.Ports;
 
 namespace Infrastructure;
@@ -9,7 +10,7 @@ public class UNCPathAdapter : IPathAdapter
         if (path.StartsWith("\\\\"))
             return path;
 
-        var machineName = Environment.MachineName;
+        var machineName = Dns.GetHostName();
         var normalized = path.Replace("/", "\\").TrimStart('\\');
 
         // Convert drive letter to administrative share (C: -> C$)

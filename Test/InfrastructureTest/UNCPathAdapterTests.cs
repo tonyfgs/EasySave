@@ -1,3 +1,4 @@
+using System.Net;
 using Application.Ports;
 using Infrastructure;
 
@@ -30,7 +31,7 @@ public class UNCPathAdapterTests
     {
         var result = _adapter.ToUNC("C:\\Users\\Jean\\Documents");
 
-        var machineName = Environment.MachineName;
+        var machineName = Dns.GetHostName();
         Assert.Equal($"\\\\{machineName}\\C$\\Users\\Jean\\Documents", result);
     }
 
