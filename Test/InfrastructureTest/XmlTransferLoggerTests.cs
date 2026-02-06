@@ -24,9 +24,9 @@ public class XmlTransferLoggerTests : IDisposable
     private TransferLog CreateLog(string jobName = "TestJob") => new()
     {
         Timestamp = DateTime.Now,
-        BackupJobName = jobName,
-        SourceFilePath = "/src/file.txt",
-        TargetFilePath = "/dst/file.txt",
+        BackupName = jobName,
+        SourcePath = "/src/file.txt",
+        DestPath = "/dst/file.txt",
         FileSize = 2048,
         TransferTimeMs = 75
     };

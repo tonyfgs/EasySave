@@ -1,7 +1,7 @@
+using System.Text.Json;
 using Application.DTOs;
 using Application.Ports;
 using Infrastructure;
-using Logger.Service;
 
 namespace InfrastructureTest;
 
@@ -24,9 +24,9 @@ public class JsonTransferLoggerTests : IDisposable
     private TransferLog CreateLog(string jobName = "TestJob") => new()
     {
         Timestamp = DateTime.Now,
-        BackupJobName = jobName,
-        SourceFilePath = "/src/file.txt",
-        TargetFilePath = "/dst/file.txt",
+        BackupName = jobName,
+        SourcePath = "/src/file.txt",
+        DestPath = "/dst/file.txt",
         FileSize = 1024,
         TransferTimeMs = 50
     };
@@ -34,8 +34,7 @@ public class JsonTransferLoggerTests : IDisposable
     [Fact]
     public void LogTransfer_ShouldCreateDailyLogFile()
     {
-        var easyLogger = new DailyLogsService();
-        ITransferLogger logger = new JsonTransferLogger(_testDir, easyLogger);
+        ITransferLogger logger = new JsonTransferLogger(_testDir);
 
         logger.LogTransfer(CreateLog());
 
@@ -46,8 +45,7 @@ public class JsonTransferLoggerTests : IDisposable
     [Fact]
     public void LogTransfer_ShouldContainTransferLogFields()
     {
-        var easyLogger = new DailyLogsService();
-        ITransferLogger logger = new JsonTransferLogger(_testDir, easyLogger);
+        ITransferLogger logger = new JsonTransferLogger(_testDir);
 
         logger.LogTransfer(CreateLog("BackupAlpha"));
 
@@ -61,8 +59,7 @@ public class JsonTransferLoggerTests : IDisposable
     [Fact]
     public void LogTransfer_MultipleCalls_ShouldAppendToSameFile()
     {
-        var easyLogger = new DailyLogsService();
-        ITransferLogger logger = new JsonTransferLogger(_testDir, easyLogger);
+        ITransferLogger logger = new JsonTransferLogger(_testDir);
 
         logger.LogTransfer(CreateLog("Job1"));
         logger.LogTransfer(CreateLog("Job2"));
@@ -71,5 +68,72 @@ public class JsonTransferLoggerTests : IDisposable
         var content = File.ReadAllText(expectedFile);
         Assert.Contains("Job1", content);
         Assert.Contains("Job2", content);
+    }
+
+    [Fact]
+    public void LogTransfer_SingleEntry_ShouldProduceValidJsonArray()
+    {
+        var logger = new JsonTransferLogger(_testDir);
+
+        logger.LogTransfer(CreateLog("Job1"));
+
+        var expectedFile = Path.Combine(_testDir, $"{DateTime.Now:yyyy-MM-dd}.json");
+        var content = File.ReadAllText(expectedFile);
+        var array = JsonSerializer.Deserialize<List<TransferLog>>(content);
+        Assert.NotNull(array);
+        Assert.Single(array);
+        Assert.Equal("Job1", array[0].BackupName);
+    }
+
+    [Fact]
+    public void LogTransfer_MultipleEntries_ShouldProduceValidJsonArray()
+    {
+        var logger = new JsonTransferLogger(_testDir);
+
+        logger.LogTransfer(CreateLog("Job1"));
+        logger.LogTransfer(CreateLog("Job2"));
+
+        var expectedFile = Path.Combine(_testDir, $"{DateTime.Now:yyyy-MM-dd}.json");
+        var content = File.ReadAllText(expectedFile);
+        var array = JsonSerializer.Deserialize<List<TransferLog>>(content);
+        Assert.NotNull(array);
+        Assert.Equal(2, array.Count);
+        Assert.Equal("Job1", array[0].BackupName);
+        Assert.Equal("Job2", array[1].BackupName);
+    }
+
+    [Fact]
+    public void LogTransfer_ShouldUseDailyFilename()
+    {
+        var logger = new JsonTransferLogger(_testDir);
+
+        logger.LogTransfer(CreateLog());
+
+        var expectedFilename = $"{DateTime.Now:yyyy-MM-dd}.json";
+        var files = Directory.GetFiles(_testDir);
+        Assert.Single(files);
+        Assert.Equal(expectedFilename, Path.GetFileName(files[0]));
+    }
+
+    [Fact]
+    public void LogTransfer_WrittenFile_IsSpecCompliantJsonArray()
+    {
+        var logger = new JsonTransferLogger(_testDir);
+
+        logger.LogTransfer(CreateLog("Job1"));
+        logger.LogTransfer(CreateLog("Job2"));
+
+        var filePath = Path.Combine(_testDir, $"{DateTime.Now:yyyy-MM-dd}.json");
+        var content = File.ReadAllText(filePath);
+        using var doc = JsonDocument.Parse(content);
+
+        Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+        Assert.Equal(2, doc.RootElement.GetArrayLength());
+
+        var expectedFields = new HashSet<string>
+            { "Timestamp", "BackupName", "SourcePath", "DestPath", "FileSize", "TransferTimeMs" };
+        var first = doc.RootElement[0];
+        var actualFields = first.EnumerateObject().Select(p => p.Name).ToHashSet();
+        Assert.True(expectedFields.SetEquals(actualFields));
     }
 }

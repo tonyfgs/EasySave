@@ -46,11 +46,15 @@ public class BackupExecutor
 
             foreach (var file in filesToCopy)
             {
+                var relativePath = Path.GetRelativePath(job.SourcePath, file.Path);
+                var targetFilePath = Path.Combine(job.TargetPath, relativePath);
+
+                _tracker.SetCurrentFile(
+                    _pathAdapter.ToUNC(file.Path),
+                    _pathAdapter.ToUNC(targetFilePath));
+
                 try
                 {
-                    var relativePath = file.Path.Substring(job.SourcePath.Length);
-                    var targetFilePath = job.TargetPath + relativePath;
-
                     var transferStopwatch = Stopwatch.StartNew();
                     var bytesCopied = _fileSystem.CopyFile(file.Path, targetFilePath);
                     transferStopwatch.Stop();
@@ -63,9 +67,9 @@ public class BackupExecutor
                     var transferLog = new TransferLog
                     {
                         Timestamp = DateTime.Now,
-                        BackupJobName = job.Name,
-                        SourceFilePath = _pathAdapter.ToUNC(file.Path),
-                        TargetFilePath = _pathAdapter.ToUNC(targetFilePath),
+                        BackupName = job.Name,
+                        SourcePath = _pathAdapter.ToUNC(file.Path),
+                        DestPath = _pathAdapter.ToUNC(targetFilePath),
                         FileSize = file.Size,
                         TransferTimeMs = transferStopwatch.ElapsedMilliseconds
                     };
@@ -77,8 +81,28 @@ public class BackupExecutor
                 catch (Exception ex)
                 {
                     errors.Add($"Failed to copy {file.Path}: {ex.Message}");
+
+                    var errorLog = new TransferLog
+                    {
+                        Timestamp = DateTime.Now,
+                        BackupName = job.Name,
+                        SourcePath = _pathAdapter.ToUNC(file.Path),
+                        DestPath = _pathAdapter.ToUNC(targetFilePath),
+                        FileSize = file.Size,
+                        TransferTimeMs = -1
+                    };
+                    _eventBus.Publish(new TransferCompletedEvent(errorLog));
+
+                    _tracker.FileProcessed(file);
+                    var snapshot = _tracker.BuildSnapshot(job.Name);
+                    _eventBus.Publish(new StateChangedEvent(snapshot));
                 }
             }
+
+            _tracker.SetState(JobState.End);
+            _tracker.ClearCurrentFile();
+            var endSnapshot = _tracker.BuildSnapshot(job.Name);
+            _eventBus.Publish(new StateChangedEvent(endSnapshot));
 
             if (strategy is FullBackupStrategy)
             {

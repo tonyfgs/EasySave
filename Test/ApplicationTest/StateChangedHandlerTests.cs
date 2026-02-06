@@ -19,11 +19,11 @@ public class StateChangedHandlerTests
             Name = "TestJob",
             Timestamp = DateTime.Now,
             State = JobState.Active,
-            TotalFilesCount = 10,
-            TotalFilesSize = 5000,
+            TotalFiles = 10,
+            TotalSize = 5000,
             Progress = 50,
-            RemainingFilesCount = 5,
-            RemainingFilesSize = 2500
+            FilesRemaining = 5,
+            SizeRemaining = 2500
         };
         var @event = new StateChangedEvent(snapshot);
 

@@ -85,4 +85,20 @@ public class DailyLogsServiceTests : IDisposable
 
         Assert.True(Directory.Exists(nestedDir));
     }
+
+    [Fact]
+    public void WriteInFile_MultipleEntries_IsNotValidJsonArray()
+    {
+        IEasyLogger service = new DailyLogsService();
+        var path = Path.Combine(_testDir, "placeholder.json");
+
+        service.WriteInFile(path, new { Entry = 1 });
+        service.WriteInFile(path, new { Entry = 2 });
+
+        var expectedFile = Path.Combine(_testDir, $"{DateTime.Now:yyyy-MM-dd}.json");
+        var content = File.ReadAllText(expectedFile);
+        var ex = Record.Exception(() =>
+            System.Text.Json.JsonSerializer.Deserialize<List<object>>(content));
+        Assert.NotNull(ex);
+    }
 }

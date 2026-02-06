@@ -7,11 +7,11 @@ public record StateSnapshot
     public string Name { get; init; } = string.Empty;
     public DateTime Timestamp { get; init; }
     public JobState State { get; init; }
-    public int TotalFilesCount { get; init; }
-    public long TotalFilesSize { get; init; }
+    public int TotalFiles { get; init; }
+    public long TotalSize { get; init; }
     public int Progress { get; init; }
-    public int RemainingFilesCount { get; init; }
-    public long RemainingFilesSize { get; init; }
-    public string CurrentSourceFilePath { get; init; } = string.Empty;
-    public string CurrentTargetFilePath { get; init; } = string.Empty;
+    public int FilesRemaining { get; init; }
+    public long SizeRemaining { get; init; }
+    public string CurrentSourceFile { get; init; } = string.Empty;
+    public string CurrentDestFile { get; init; } = string.Empty;
 }

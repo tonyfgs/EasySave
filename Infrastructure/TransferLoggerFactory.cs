@@ -21,7 +21,7 @@ public class TransferLoggerFactory
     {
         return _logFormat switch
         {
-            LogFormat.JSON => new JsonTransferLogger(_logDirectory, _easyLogger),
+            LogFormat.JSON => new JsonTransferLogger(_logDirectory),
             LogFormat.XML => new XmlTransferLogger(_logDirectory, _easyLogger),
             _ => throw new ArgumentOutOfRangeException(nameof(_logFormat), _logFormat, "Unsupported log format")
         };

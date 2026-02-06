@@ -9,6 +9,9 @@ public class ProgressTracker
     private int _processedFiles;
     private long _totalBytes;
     private long _processedBytes;
+    private string _currentSourceFile = string.Empty;
+    private string _currentDestFile = string.Empty;
+    private JobState _state = JobState.Inactive;
 
     public void Initialize(List<FileDescriptor> files)
     {
@@ -16,6 +19,7 @@ public class ProgressTracker
         _totalBytes = files.Sum(f => f.Size);
         _processedFiles = 0;
         _processedBytes = 0;
+        _state = JobState.Active;
     }
 
     public void FileProcessed(FileDescriptor file)
@@ -24,20 +28,37 @@ public class ProgressTracker
         _processedBytes += file.Size;
     }
 
+    public void SetCurrentFile(string sourcePath, string destPath)
+    {
+        _currentSourceFile = sourcePath;
+        _currentDestFile = destPath;
+    }
+
+    public void ClearCurrentFile()
+    {
+        _currentSourceFile = string.Empty;
+        _currentDestFile = string.Empty;
+    }
+
+    public void SetState(JobState state)
+    {
+        _state = state;
+    }
+
     public StateSnapshot BuildSnapshot(string jobName)
     {
         return new StateSnapshot
         {
             Name = jobName,
             Timestamp = DateTime.Now,
-            State = JobState.Active,
-            TotalFilesCount = _totalFiles,
-            TotalFilesSize = _totalBytes,
+            State = _state,
+            TotalFiles = _totalFiles,
+            TotalSize = _totalBytes,
             Progress = GetProgress(),
-            RemainingFilesCount = _totalFiles - _processedFiles,
-            RemainingFilesSize = _totalBytes - _processedBytes,
-            CurrentSourceFilePath = string.Empty,
-            CurrentTargetFilePath = string.Empty
+            FilesRemaining = _totalFiles - _processedFiles,
+            SizeRemaining = _totalBytes - _processedBytes,
+            CurrentSourceFile = _currentSourceFile,
+            CurrentDestFile = _currentDestFile
         };
     }
 
@@ -53,5 +74,8 @@ public class ProgressTracker
         _processedFiles = 0;
         _totalBytes = 0;
         _processedBytes = 0;
+        _currentSourceFile = string.Empty;
+        _currentDestFile = string.Empty;
+        _state = JobState.Inactive;
     }
 }

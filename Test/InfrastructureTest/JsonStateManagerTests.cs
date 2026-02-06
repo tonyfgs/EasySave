@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Application.DTOs;
 using Application.Ports;
 using Infrastructure;
@@ -29,13 +30,13 @@ public class JsonStateManagerTests : IDisposable
             Name = name,
             Timestamp = DateTime.Now,
             State = state,
-            TotalFilesCount = 10,
-            TotalFilesSize = 1024,
+            TotalFiles = 10,
+            TotalSize = 1024,
             Progress = 50,
-            RemainingFilesCount = 5,
-            RemainingFilesSize = 512,
-            CurrentSourceFilePath = "/src/file.txt",
-            CurrentTargetFilePath = "/dst/file.txt"
+            FilesRemaining = 5,
+            SizeRemaining = 512,
+            CurrentSourceFile = "/src/file.txt",
+            CurrentDestFile = "/dst/file.txt"
         };
 
     [Fact]
@@ -108,5 +109,30 @@ public class JsonStateManagerTests : IDisposable
         var states = manager2.GetAllStates();
         Assert.Single(states);
         Assert.Equal("Persistent", states[0].Name);
+    }
+
+    [Fact]
+    public void WrittenFile_IsSpecCompliantStateArray()
+    {
+        var manager = new JsonStateManager(_filePath);
+        manager.UpdateState(CreateSnapshot("Photos", JobState.Active));
+
+        var content = File.ReadAllText(_filePath);
+        using var doc = JsonDocument.Parse(content);
+
+        Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+        Assert.Equal(1, doc.RootElement.GetArrayLength());
+
+        var expectedFields = new HashSet<string>
+        {
+            "Name", "Timestamp", "State", "TotalFiles", "TotalSize",
+            "Progress", "FilesRemaining", "SizeRemaining",
+            "CurrentSourceFile", "CurrentDestFile"
+        };
+        var element = doc.RootElement[0];
+        var actualFields = element.EnumerateObject().Select(p => p.Name).ToHashSet();
+        Assert.True(expectedFields.SetEquals(actualFields));
+
+        Assert.Equal("ACTIVE", element.GetProperty("State").GetString());
     }
 }

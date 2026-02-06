@@ -16,9 +16,9 @@ public class TransferCompletedHandlerTests
         var log = new TransferLog
         {
             Timestamp = DateTime.Now,
-            BackupJobName = "TestJob",
-            SourceFilePath = "/src/file.txt",
-            TargetFilePath = "/dst/file.txt",
+            BackupName = "TestJob",
+            SourcePath = "/src/file.txt",
+            DestPath = "/dst/file.txt",
             FileSize = 1024,
             TransferTimeMs = 50
         };
