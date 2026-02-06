@@ -38,6 +38,7 @@ public class BackupExecutionService
 
             var strategy = _strategyFactory.Create(job.Type);
             var result = _executor.Execute(job, strategy);
+            _repository.Update(job);
             results.Add(new JobExecutionResult(jobId, result));
         }
 

@@ -63,6 +63,17 @@ public class BackupExecutionServiceTests
     }
 
     [Fact]
+    public void ExecuteJobs_ShouldCallRepositoryUpdateAfterExecution()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+
+        _service.ExecuteJobs(new List<int> { 1 });
+
+        _mockRepo.Verify(r => r.Update(job), Times.Once);
+    }
+
+    [Fact]
     public void ExecuteAllJobs_ShouldExecuteAllJobsFromRepository()
     {
         var jobs = new List<BackupJob>
