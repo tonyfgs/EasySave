@@ -278,8 +278,8 @@ Mis a jour en temps reel pendant l'execution :
     "Progress": 35,
     "FilesRemaining": 162,
     "SizeRemaining": 3489259520,
-    "CurrentSourceFile": "/Users/jean/Documents/dossier/fichier.docx",
-    "CurrentDestFile": "/Volumes/USB/Sauvegardes/Documents/dossier/fichier.docx"
+    "CurrentSourceFile": "\\\\MacBook-de-Jean\\Users\\jean\\Documents\\dossier\\fichier.docx",
+    "CurrentDestFile": "\\\\MacBook-de-Jean\\Volumes\\USB\\Sauvegardes\\Documents\\dossier\\fichier.docx"
   }
 ]
 ```

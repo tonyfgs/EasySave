@@ -246,7 +246,7 @@ Un fichier par jour, au format JSON. Chaque entree contient :
   {
     "Timestamp": "2026-02-06T10:15:23.456789Z",
     "BackupName": "MesDocuments",
-    "SourcePath": "\\\\DESKTOP-ABC\\Users\\Jean\\Documents\\rapport.pdf",
+    "SourcePath": "\\\\DESKTOP-ABC\\C$\\Users\\Jean\\Documents\\rapport.pdf",
     "DestPath": "\\\\DESKTOP-ABC\\E$\\Sauvegardes\\Documents\\rapport.pdf",
     "FileSize": 1048576,
     "TransferTimeMs": 250
@@ -278,8 +278,8 @@ Mis a jour en temps reel pendant l'execution :
     "Progress": 35,
     "FilesRemaining": 162,
     "SizeRemaining": 3489259520,
-    "CurrentSourceFile": "C:\\Users\\Jean\\Documents\\dossier\\fichier.docx",
-    "CurrentDestFile": "E:\\Sauvegardes\\Documents\\dossier\\fichier.docx"
+    "CurrentSourceFile": "\\\\DESKTOP-ABC\\C$\\Users\\Jean\\Documents\\dossier\\fichier.docx",
+    "CurrentDestFile": "\\\\DESKTOP-ABC\\E$\\Sauvegardes\\Documents\\dossier\\fichier.docx"
   }
 ]
 ```
