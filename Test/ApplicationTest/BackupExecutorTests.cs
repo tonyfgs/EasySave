@@ -8,6 +8,9 @@ namespace ApplicationTest;
 
 public class BackupExecutorTests
 {
+    private static readonly string SourcePath = Path.GetFullPath("/src");
+    private static readonly string TargetPath = Path.GetFullPath("/dst");
+
     private readonly Mock<IFileSystemGateway> _mockFileSystem;
     private readonly Mock<IPathAdapter> _mockPathAdapter;
     private readonly Mock<IEventBus> _mockEventBus;
@@ -36,15 +39,15 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_FullBackup_ShouldCopyAllFiles()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now),
-            new("/src/file2.txt", 200, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
 
         var result = _executor.Execute(job, strategy);
@@ -57,14 +60,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_ShouldPublishTransferCompletedEventPerFile()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
 
         _executor.Execute(job, strategy);
@@ -75,14 +78,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_ShouldPublishStateChangedEvents()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
 
         _executor.Execute(job, strategy);
@@ -93,23 +96,23 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_ShouldEnsureTargetDirectoryExists()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(new List<FileDescriptor>());
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(new List<FileDescriptor>());
 
         _executor.Execute(job, strategy);
 
-        _mockFileSystem.Verify(fs => fs.EnsureDirectory("/dst"), Times.Once);
+        _mockFileSystem.Verify(fs => fs.EnsureDirectory(TargetPath), Times.Once);
     }
 
     [Fact]
     public void Execute_NoFiles_ShouldReturnSuccessWithZeroFiles()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(new List<FileDescriptor>());
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(new List<FileDescriptor>());
 
         var result = _executor.Execute(job, strategy);
 
@@ -120,14 +123,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_CopyFails_ShouldReturnFailureResult()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Throws(new IOException("Copy failed"));
 
@@ -140,16 +143,18 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_ShouldConvertPathsToUNC()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var srcFile = Path.Combine(SourcePath, "file1.txt");
+        var dstFile = Path.Combine(TargetPath, "file1.txt");
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(srcFile, 100, DateTime.Now)
         };
 
-        _mockPathAdapter.Setup(p => p.ToUNC("/src/file1.txt")).Returns("\\\\server\\src\\file1.txt");
-        _mockPathAdapter.Setup(p => p.ToUNC("/dst/file1.txt")).Returns("\\\\server\\dst\\file1.txt");
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockPathAdapter.Setup(p => p.ToUNC(srcFile)).Returns("\\\\server\\src\\file1.txt");
+        _mockPathAdapter.Setup(p => p.ToUNC(dstFile)).Returns("\\\\server\\dst\\file1.txt");
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
 
         _executor.Execute(job, strategy);
@@ -161,14 +166,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_ShouldIncludeCurrentFileInStateSnapshot()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
 
         StateChangedEvent? capturedEvent = null;
@@ -189,14 +194,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_ShouldPublishEndStateAfterCompletion()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
 
         var capturedEvents = new List<StateChangedEvent>();
@@ -213,14 +218,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_CopyFails_ShouldPublishTransferEventWithNegativeTime()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Throws(new IOException("Disk full"));
 
@@ -237,14 +242,17 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_SourcePathWithTrailingSlash_ShouldConstructCorrectTargetPath()
     {
-        var job = new BackupJob(1, "TestJob", "/src/", "/dst/", BackupType.Full);
+        var srcWithSlash = SourcePath + Path.DirectorySeparatorChar;
+        var dstWithSlash = TargetPath + Path.DirectorySeparatorChar;
+        var normalizedSrc = Path.GetFullPath(srcWithSlash);
+        var job = new BackupJob(1, "TestJob", srcWithSlash, dstWithSlash, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/subdir/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "subdir", "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src/")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(normalizedSrc)).Returns(files);
 
         string? capturedTarget = null;
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
@@ -261,14 +269,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_SourcePathWithoutTrailingSlash_ShouldConstructCorrectTargetPath()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
 
         string? capturedTarget = null;
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
@@ -284,10 +292,10 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_EmptySourceDir_ShouldPublishEndStateEvent()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(new List<FileDescriptor>());
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(new List<FileDescriptor>());
 
         var capturedEvents = new List<StateChangedEvent>();
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
@@ -303,14 +311,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_CopyFails_TransferTimeMs_ShouldBeExactlyMinusOne()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Throws(new IOException("Disk full"));
 
@@ -327,15 +335,15 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_FirstFileFails_ShouldContinueProcessingSecondFile()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now),
-            new("/src/file2.txt", 200, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.SetupSequence(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Throws(new IOException("File locked"))
             .Returns(200);
@@ -355,16 +363,18 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_CopyFails_ErrorLog_ShouldContainCorrectPathsAndSize()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var srcFile = Path.Combine(SourcePath, "data.bin");
+        var dstFile = Path.Combine(TargetPath, "data.bin");
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/data.bin", 4096, DateTime.Now)
+            new(srcFile, 4096, DateTime.Now)
         };
 
-        _mockPathAdapter.Setup(p => p.ToUNC("/src/data.bin")).Returns("\\\\server\\src\\data.bin");
-        _mockPathAdapter.Setup(p => p.ToUNC(It.Is<string>(s => s.Contains("/dst")))).Returns("\\\\server\\dst\\data.bin");
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockPathAdapter.Setup(p => p.ToUNC(srcFile)).Returns("\\\\server\\src\\data.bin");
+        _mockPathAdapter.Setup(p => p.ToUNC(dstFile)).Returns("\\\\server\\dst\\data.bin");
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Throws(new IOException("Access denied"));
 
@@ -384,14 +394,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_CopyFails_ShouldPublishErrorState()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Throws(new IOException("Disk full"));
 
@@ -409,15 +419,15 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_PartialFailure_ShouldPublishErrorState()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/file1.txt", 100, DateTime.Now),
-            new("/src/file2.txt", 200, DateTime.Now)
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.SetupSequence(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
             .Returns(100)
             .Throws(new IOException("Disk full"));
@@ -435,14 +445,14 @@ public class BackupExecutorTests
     [Fact]
     public void Execute_NestedSubdir_ShouldPreserveExactRelativePath()
     {
-        var job = new BackupJob(1, "TestJob", "/src", "/dst", BackupType.Full);
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
         var files = new List<FileDescriptor>
         {
-            new("/src/a/b/c.txt", 100, DateTime.Now)
+            new(Path.Combine(SourcePath, "a", "b", "c.txt"), 100, DateTime.Now)
         };
 
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles("/src")).Returns(files);
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
 
         string? capturedTarget = null;
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
@@ -452,7 +462,7 @@ public class BackupExecutorTests
         _executor.Execute(job, strategy);
 
         Assert.NotNull(capturedTarget);
-        var expectedTarget = Path.Combine("/dst", "a", "b", "c.txt");
+        var expectedTarget = Path.Combine(TargetPath, "a", "b", "c.txt");
         Assert.Equal(expectedTarget, capturedTarget);
     }
 
