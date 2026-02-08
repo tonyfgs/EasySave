@@ -1,3 +1,4 @@
+using System.Net;
 using Application.Ports;
 using Infrastructure;
 
@@ -23,6 +24,15 @@ public class UNCPathAdapterTests
         var result = _adapter.ToUNC(uncPath);
 
         Assert.Equal(uncPath, result);
+    }
+
+    [Fact]
+    public void ToUNC_WithWindowsDriveLetter_ShouldConvertToAdminShare()
+    {
+        var result = _adapter.ToUNC("C:\\Users\\Jean\\Documents");
+
+        var machineName = Dns.GetHostName();
+        Assert.Equal($"\\\\{machineName}\\C$\\Users\\Jean\\Documents", result);
     }
 
     [Fact]

@@ -37,17 +37,20 @@ public class BackupExecutor
 
         try
         {
-            _fileSystem.EnsureDirectory(job.TargetPath);
+            var sourcePath = Path.GetFullPath(job.SourcePath);
+            var targetPath = Path.GetFullPath(job.TargetPath);
 
-            var allFiles = _fileSystem.EnumerateFiles(job.SourcePath);
+            _fileSystem.EnsureDirectory(targetPath);
+
+            var allFiles = _fileSystem.EnumerateFiles(sourcePath);
             var filesToCopy = _domainService.SelectFilesForBackup(job, allFiles, strategy);
 
             _tracker.Initialize(filesToCopy.ToList());
 
             foreach (var file in filesToCopy)
             {
-                var relativePath = Path.GetRelativePath(job.SourcePath, file.Path);
-                var targetFilePath = Path.Combine(job.TargetPath, relativePath);
+                var relativePath = Path.GetRelativePath(sourcePath, file.Path);
+                var targetFilePath = Path.Combine(targetPath, relativePath);
 
                 _tracker.SetCurrentFile(
                     _pathAdapter.ToUNC(file.Path),
@@ -99,7 +102,7 @@ public class BackupExecutor
                 }
             }
 
-            _tracker.SetState(JobState.End);
+            _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
             _tracker.ClearCurrentFile();
             var endSnapshot = _tracker.BuildSnapshot(job.Name);
             _eventBus.Publish(new StateChangedEvent(endSnapshot));

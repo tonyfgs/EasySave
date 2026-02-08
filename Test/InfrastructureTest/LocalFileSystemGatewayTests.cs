@@ -128,4 +128,48 @@ public class LocalFileSystemGatewayTests : IDisposable
 
         Assert.False(gateway.Exists(Path.Combine(_testDir, "nonexistent.txt")));
     }
+
+    [Fact]
+    public void EnumerateFiles_WithTrailingSlash_ShouldReturnNormalizedPaths()
+    {
+        var filePath = Path.Combine(_testDir, "test.txt");
+        File.WriteAllText(filePath, "hello");
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        var files = gateway.EnumerateFiles(_testDir + Path.DirectorySeparatorChar);
+
+        Assert.Single(files);
+        Assert.Equal(Path.GetFullPath(filePath), files[0].Path);
+    }
+
+    [Fact]
+    public void CopyFile_WithUnnormalizedPath_ShouldCopySuccessfully()
+    {
+        var source = Path.Combine(_testDir, "source.txt");
+        var unnormalizedTarget = Path.Combine(_testDir, "sub", "..", "target", "dest.txt");
+        File.WriteAllText(source, "normalize me");
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        var bytes = gateway.CopyFile(source, unnormalizedTarget);
+
+        var normalizedTarget = Path.GetFullPath(unnormalizedTarget);
+        Assert.True(File.Exists(normalizedTarget));
+        Assert.True(bytes > 0);
+    }
+
+    [Fact]
+    public void CopyFile_WithSpecialCharactersInPath_ShouldCopySuccessfully()
+    {
+        var source = Path.Combine(_testDir, "source.txt");
+        var targetDir = Path.Combine(_testDir, "spécial-chars");
+        var target = Path.Combine(targetDir, "dest.txt");
+        File.WriteAllText(source, "special chars test");
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        var bytes = gateway.CopyFile(source, target);
+
+        Assert.True(File.Exists(target));
+        Assert.True(bytes > 0);
+        Assert.Equal(File.ReadAllText(source), File.ReadAllText(target));
+    }
 }

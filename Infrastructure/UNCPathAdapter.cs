@@ -1,3 +1,4 @@
+using System.Net;
 using Application.Ports;
 
 namespace Infrastructure;
@@ -9,9 +10,14 @@ public class UNCPathAdapter : IPathAdapter
         if (path.StartsWith("\\\\"))
             return path;
 
-        var machineName = Environment.MachineName;
-        var normalized = path.Replace("/", "\\");
-        return $"\\\\{machineName}\\{normalized.TrimStart('\\')}";
+        var machineName = Dns.GetHostName();
+        var normalized = path.Replace("/", "\\").TrimStart('\\');
+
+        // Convert drive letter to administrative share (C: -> C$)
+        if (normalized.Length >= 2 && normalized[1] == ':')
+            normalized = normalized[0] + "$" + normalized.Substring(2);
+
+        return $"\\\\{machineName}\\{normalized}";
     }
 
     public bool IsValidPath(string path)
