@@ -6,12 +6,10 @@ namespace Application.Services;
 public class JobManagementService
 {
     private readonly IJobRepository _repository;
-    private readonly BackupDomainService _domainService;
 
-    public JobManagementService(IJobRepository repository, BackupDomainService domainService)
+    public JobManagementService(IJobRepository repository)
     {
         _repository = repository;
-        _domainService = domainService;
     }
 
     public BackupJob CreateJob(string name, string source, string target, BackupType type)

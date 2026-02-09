@@ -8,14 +8,12 @@ namespace ApplicationTest;
 public class JobManagementServiceTests
 {
     private readonly Mock<IJobRepository> _mockRepo;
-    private readonly BackupDomainService _domainService;
     private readonly JobManagementService _service;
 
     public JobManagementServiceTests()
     {
         _mockRepo = new Mock<IJobRepository>();
-        _domainService = new BackupDomainService();
-        _service = new JobManagementService(_mockRepo.Object, _domainService);
+        _service = new JobManagementService(_mockRepo.Object);
     }
 
     [Fact]
@@ -25,14 +23,6 @@ public class JobManagementServiceTests
 
         Assert.Equal("TestJob", job.Name);
         _mockRepo.Verify(r => r.Save(It.Is<BackupJob>(j => j.Name == "TestJob")), Times.Once);
-    }
-
-    [Fact]
-    public void CreateJob_SixthJob_ShouldSucceed()
-    {
-        var job = _service.CreateJob("Job6", "/src", "/dst", BackupType.Full);
-
-        Assert.Equal("Job6", job.Name);
     }
 
     [Fact]

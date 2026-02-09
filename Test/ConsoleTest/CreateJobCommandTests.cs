@@ -14,8 +14,7 @@ public class CreateJobCommandTests
     public CreateJobCommandTests()
     {
         _mockRepo = new Mock<IJobRepository>();
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         _command = new CreateJobCommand(jobService, TextWriter.Null);
     }
 

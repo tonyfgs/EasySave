@@ -14,8 +14,7 @@ public class DeleteJobCommandTests
     public DeleteJobCommandTests()
     {
         _mockRepo = new Mock<IJobRepository>();
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         _command = new DeleteJobCommand(jobService, TextWriter.Null);
     }
 
