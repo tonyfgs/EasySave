@@ -56,6 +56,7 @@ public class XmlTransferLoggerTests : IDisposable
         Assert.Contains("XmlBackup", content);
         Assert.Contains("2048", content);
         Assert.Contains("<TransferLog", content);
+        Assert.Contains("<EncryptionTimeMs>0</EncryptionTimeMs>", content);
     }
 
     [Fact]

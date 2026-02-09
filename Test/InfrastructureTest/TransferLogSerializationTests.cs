@@ -145,4 +145,25 @@ public class TransferLogSerializationTests
         Assert.NotNull(restored);
         Assert.Equal(500, restored.EncryptionTimeMs);
     }
+
+    [Fact]
+    public void TransferLog_NegativeEncryptionTimeMs_RoundTrip_PreservesErrorCode()
+    {
+        var original = new TransferLog
+        {
+            Timestamp = new DateTime(2024, 6, 15, 10, 0, 0),
+            BackupName = "Failed Encryption",
+            SourcePath = "\\\\PC\\D$\\secret.docx",
+            DestPath = "\\\\PC\\E$\\Backup\\secret.docx",
+            FileSize = 4096,
+            TransferTimeMs = 200,
+            EncryptionTimeMs = -1
+        };
+
+        var json = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<TransferLog>(json);
+
+        Assert.NotNull(restored);
+        Assert.Equal(-1, restored.EncryptionTimeMs);
+    }
 }
