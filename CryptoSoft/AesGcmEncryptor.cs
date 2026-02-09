@@ -9,7 +9,7 @@ public static class AesGcmEncryptor
     private const int KeySize = 32;   // 256 bits - AES-256
     private const int BufferSize = 81920; // 80 Ko - buffer pour streaming
 
- 
+
     public static int EncryptFile(string inputPath, string keyBase64)
     {
         try
@@ -49,26 +49,26 @@ public static class AesGcmEncryptor
             using var outputStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
 
             outputStream.Write(nonce, 0, NonceSize);
-            
+
             byte[] tag = new byte[TagSize];
             outputStream.Write(tag, 0, TagSize);
 
             byte[] plaintext = new byte[inputStream.Length];
             int bytesRead = inputStream.Read(plaintext, 0, plaintext.Length);
-            
+
             byte[] ciphertext = new byte[bytesRead];
-            
+
             aesGcm.Encrypt(nonce, plaintext.AsSpan(0, bytesRead), ciphertext, tag);
-            
+
             outputStream.Write(ciphertext, 0, ciphertext.Length);
-            
+
             outputStream.Seek(NonceSize, SeekOrigin.Begin);
             outputStream.Write(tag, 0, TagSize);
 
             Console.WriteLine($"✓ Fichier chiffré avec succès : {outputPath}");
             Console.WriteLine($"  Taille originale : {bytesRead:N0} octets");
             Console.WriteLine($"  Taille chiffrée : {(NonceSize + TagSize + bytesRead):N0} octets");
-            
+
             return 0;
         }
         catch (UnauthorizedAccessException ex)
@@ -88,7 +88,7 @@ public static class AesGcmEncryptor
         }
     }
 
-   
+
     public static int DecryptFile(string inputPath, string keyBase64)
     {
         try
@@ -129,7 +129,7 @@ public static class AesGcmEncryptor
 
             byte[] nonce = new byte[NonceSize];
             byte[] tag = new byte[TagSize];
-            
+
             inputStream.Read(nonce, 0, NonceSize);
             inputStream.Read(tag, 0, TagSize);
 
@@ -138,9 +138,9 @@ public static class AesGcmEncryptor
             inputStream.Read(ciphertext, 0, ciphertextLength);
 
             byte[] plaintext = new byte[ciphertextLength];
-            
+
             using var aesGcm = new AesGcm(key, TagSize);
-            
+
             try
             {
                 aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
@@ -160,7 +160,7 @@ public static class AesGcmEncryptor
 
             Console.WriteLine($"✓ Fichier déchiffré avec succès : {outputPath}");
             Console.WriteLine($"  Taille déchiffrée : {plaintext.Length:N0} octets");
-            
+
             return 0;
         }
         catch (UnauthorizedAccessException ex)
@@ -179,7 +179,7 @@ public static class AesGcmEncryptor
             return 3;
         }
     }
-    
+
     public static string GenerateKey()
     {
         byte[] key = new byte[KeySize];

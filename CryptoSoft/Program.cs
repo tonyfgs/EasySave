@@ -60,7 +60,7 @@ class Program
 
         // Exécution de l'opération
         int exitCode;
-        
+
         switch (operation)
         {
             case "encrypt":
@@ -85,7 +85,7 @@ class Program
 
         Console.WriteLine();
         Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
-        
+
         return exitCode;
     }
 
