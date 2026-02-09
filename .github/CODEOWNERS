@@ -1,0 +1,19 @@
+# Default owner for all files
+* @tonyfgs
+
+# Architecture layers
+/Model/ @tonyfgs
+/Application/ @tonyfgs
+/Infrastructure/ @tonyfgs
+/Console/ @tonyfgs
+/Logger/ @tonyfgs
+/Shared/ @tonyfgs
+
+# Tests
+/Test/ @tonyfgs
+
+# CI/CD and DevOps
+/.github/ @tonyfgs
+/global.json @tonyfgs
+/Console/Dockerfile @tonyfgs
+/compose.yaml @tonyfgs
