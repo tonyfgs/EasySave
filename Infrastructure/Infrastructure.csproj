@@ -5,6 +5,11 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Infrastructure</RootNamespace>
   </PropertyGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+  
   <ItemGroup>
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Model\Model.csproj" />
