@@ -51,7 +51,7 @@ public class TransferLogSerializationTests
     }
 
     [Fact]
-    public void TransferLog_SerializedJson_HasExactly6SpecFields()
+    public void TransferLog_SerializedJson_HasExactly7SpecFields()
     {
         var log = new TransferLog
         {
@@ -60,20 +60,22 @@ public class TransferLogSerializationTests
             SourcePath = "\\\\PC\\D$\\Photos\\chat.jpg",
             DestPath = "\\\\PC\\E$\\Backup\\chat.jpg",
             FileSize = 2048576,
-            TransferTimeMs = 150
+            TransferTimeMs = 150,
+            EncryptionTimeMs = 0
         };
 
         var json = JsonSerializer.Serialize(log);
         using var doc = JsonDocument.Parse(json);
         var propertyNames = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
 
-        Assert.Equal(6, propertyNames.Count);
+        Assert.Equal(7, propertyNames.Count);
         Assert.Contains("Timestamp", propertyNames);
         Assert.Contains("BackupName", propertyNames);
         Assert.Contains("SourcePath", propertyNames);
         Assert.Contains("DestPath", propertyNames);
         Assert.Contains("FileSize", propertyNames);
         Assert.Contains("TransferTimeMs", propertyNames);
+        Assert.Contains("EncryptionTimeMs", propertyNames);
     }
 
     [Fact]
@@ -86,7 +88,8 @@ public class TransferLogSerializationTests
             SourcePath = "\\\\PC\\D$\\Photos\\chat.jpg",
             DestPath = "\\\\PC\\E$\\Backup\\Photos\\chat.jpg",
             FileSize = 2048576,
-            TransferTimeMs = 150
+            TransferTimeMs = 150,
+            EncryptionTimeMs = 250
         };
 
         var json = JsonSerializer.Serialize(original);
@@ -99,5 +102,47 @@ public class TransferLogSerializationTests
         Assert.Equal(original.DestPath, restored.DestPath);
         Assert.Equal(original.FileSize, restored.FileSize);
         Assert.Equal(original.TransferTimeMs, restored.TransferTimeMs);
+        Assert.Equal(original.EncryptionTimeMs, restored.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void TransferLog_V1Log_DeserializesWithDefaultEncryptionTimeMs()
+    {
+        var json = """
+        {
+            "Timestamp": "2024-01-26T14:30:00",
+            "BackupName": "OldBackup",
+            "SourcePath": "\\\\PC\\src",
+            "DestPath": "\\\\PC\\dst",
+            "FileSize": 1024,
+            "TransferTimeMs": 50
+        }
+        """;
+
+        var log = JsonSerializer.Deserialize<TransferLog>(json);
+
+        Assert.NotNull(log);
+        Assert.Equal(0, log.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void TransferLog_EncryptionTimeMs_RoundTrip_PreservesNonZeroValue()
+    {
+        var original = new TransferLog
+        {
+            Timestamp = new DateTime(2024, 6, 15, 10, 0, 0),
+            BackupName = "Encrypted Backup",
+            SourcePath = "\\\\PC\\D$\\secret.docx",
+            DestPath = "\\\\PC\\E$\\Backup\\secret.docx",
+            FileSize = 4096,
+            TransferTimeMs = 200,
+            EncryptionTimeMs = 500
+        };
+
+        var json = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<TransferLog>(json);
+
+        Assert.NotNull(restored);
+        Assert.Equal(500, restored.EncryptionTimeMs);
     }
 }

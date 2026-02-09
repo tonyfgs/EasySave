@@ -131,7 +131,7 @@ public class JsonTransferLoggerTests : IDisposable
         Assert.Equal(2, doc.RootElement.GetArrayLength());
 
         var expectedFields = new HashSet<string>
-            { "Timestamp", "BackupName", "SourcePath", "DestPath", "FileSize", "TransferTimeMs" };
+            { "Timestamp", "BackupName", "SourcePath", "DestPath", "FileSize", "TransferTimeMs", "EncryptionTimeMs" };
         var first = doc.RootElement[0];
         var actualFields = first.EnumerateObject().Select(p => p.Name).ToHashSet();
         Assert.True(expectedFields.SetEquals(actualFields));
