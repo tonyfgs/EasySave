@@ -33,6 +33,8 @@ public class JobManagementServiceTests
             var job = _service.CreateJob($"Job{i + 1}", "/src", "/dst", BackupType.Full);
             Assert.Equal($"Job{i + 1}", job.Name);
         }
+
+        _mockRepo.Verify(r => r.Save(It.IsAny<BackupJob>()), Times.Exactly(10));
     }
 
     [Fact]
