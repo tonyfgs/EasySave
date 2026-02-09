@@ -22,7 +22,6 @@ public class ConsoleIntegrationTests
     public void FullFlow_CreateAndListJob_ShouldShowCreatedJob()
     {
         var mockRepo = new Mock<IJobRepository>();
-        mockRepo.Setup(r => r.Count()).Returns(0);
         var createdJobs = new List<BackupJob>();
         mockRepo.Setup(r => r.Save(It.IsAny<BackupJob>()))
             .Callback<BackupJob>(j => { j.Id = 1; createdJobs.Add(j); });
