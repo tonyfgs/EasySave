@@ -39,6 +39,27 @@ public class JobManagementServiceTests
     }
 
     [Fact]
+    public void CreateJob_SixthJob_ShouldSucceed()
+    {
+        _mockRepo.Setup(r => r.Count()).Returns(5);
+
+        var job = _service.CreateJob("Job6", "/src", "/dst", BackupType.Full);
+
+        Assert.Equal("Job6", job.Name);
+    }
+
+    [Fact]
+    public void CreateJob_TenJobs_ShouldAllSucceed()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            _mockRepo.Setup(r => r.Count()).Returns(i);
+            var job = _service.CreateJob($"Job{i + 1}", "/src", "/dst", BackupType.Full);
+            Assert.Equal($"Job{i + 1}", job.Name);
+        }
+    }
+
+    [Fact]
     public void CreateJob_InvalidName_ShouldThrow()
     {
         _mockRepo.Setup(r => r.Count()).Returns(0);
