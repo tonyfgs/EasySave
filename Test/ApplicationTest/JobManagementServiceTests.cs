@@ -30,15 +30,6 @@ public class JobManagementServiceTests
     }
 
     [Fact]
-    public void CreateJob_AtMaxJobs_ShouldThrow()
-    {
-        _mockRepo.Setup(r => r.Count()).Returns(5);
-
-        Assert.Throws<JobLimitExceededException>(
-            () => _service.CreateJob("TestJob", "/src", "/dst", BackupType.Full));
-    }
-
-    [Fact]
     public void CreateJob_SixthJob_ShouldSucceed()
     {
         _mockRepo.Setup(r => r.Count()).Returns(5);

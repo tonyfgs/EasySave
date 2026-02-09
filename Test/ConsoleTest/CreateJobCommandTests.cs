@@ -41,17 +41,6 @@ public class CreateJobCommandTests
     }
 
     [Fact]
-    public void Execute_AtJobLimit_ShouldReturnFailure()
-    {
-        _mockRepo.Setup(r => r.Count()).Returns(5);
-        var args = new List<string> { "MyBackup", "/src", "/dst", "Full" };
-
-        var result = _command.Execute(args);
-
-        Assert.False(result.IsSuccess());
-    }
-
-    [Fact]
     public void Execute_WithEmptyName_ShouldReturnFailure()
     {
         var args = new List<string> { "", "/src", "/dst", "Full" };
