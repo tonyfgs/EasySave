@@ -683,8 +683,10 @@ public class BackupExecutorTests
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
             .Returns(new CryptoResult
             {
-                Success = false, DurationMs = 0,
-                ErrorCode = CryptoErrorCode.IoError, ErrorMessage = "CryptoSoft crashed"
+                Success = false,
+                DurationMs = 0,
+                ErrorCode = CryptoErrorCode.IoError,
+                ErrorMessage = "CryptoSoft crashed"
             });
 
         TransferCompletedEvent? capturedEvent = null;
