@@ -1,0 +1,49 @@
+# Architecture layer labels
+shared:
+  - changed-files:
+      - any-glob-to-any-file: Shared/**
+
+model:
+  - changed-files:
+      - any-glob-to-any-file: Model/**
+
+application:
+  - changed-files:
+      - any-glob-to-any-file: Application/**
+
+infrastructure:
+  - changed-files:
+      - any-glob-to-any-file: Infrastructure/**
+
+logger:
+  - changed-files:
+      - any-glob-to-any-file: Logger/**
+
+console:
+  - changed-files:
+      - any-glob-to-any-file: Console/**
+
+# Category labels
+tests:
+  - changed-files:
+      - any-glob-to-any-file: Test/**
+
+ci-cd:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - global.json
+          - Console/Dockerfile
+          - compose.yaml
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - Document/**
+          - "*.md"
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - Console/Dockerfile
+          - compose.yaml

@@ -1,0 +1,19 @@
+# Default owner for all files
+* @tonyfgs @TheD57 @heraclescap
+
+# Architecture layers
+/Model/ @tonyfgs @TheD57 @heraclescap
+/Application/ @tonyfgs @TheD57 @heraclescap
+/Infrastructure/ @tonyfgs @TheD57 @heraclescap
+/Console/ @tonyfgs @TheD57 @heraclescap
+/Logger/ @tonyfgs @TheD57 @heraclescap
+/Shared/ @tonyfgs @TheD57 @heraclescap
+
+# Tests
+/Test/ @tonyfgs @TheD57 @heraclescap
+
+# CI/CD and DevOps
+/.github/ @tonyfgs @TheD57 @heraclescap
+/global.json @tonyfgs @TheD57 @heraclescap
+/Console/Dockerfile @tonyfgs @TheD57 @heraclescap
+/compose.yaml @tonyfgs @TheD57 @heraclescap

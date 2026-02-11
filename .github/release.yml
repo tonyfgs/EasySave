@@ -1,0 +1,40 @@
+changelog:
+  exclude:
+    labels:
+      - stale
+      - duplicate
+      - invalid
+    authors:
+      - dependabot[bot]
+  categories:
+    - title: New Features
+      labels:
+        - enhancement
+        - feature
+    - title: Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: Architecture
+      labels:
+        - shared
+        - model
+        - application
+        - infrastructure
+        - logger
+        - console
+    - title: Tests
+      labels:
+        - tests
+    - title: CI/CD & DevOps
+      labels:
+        - ci-cd
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other Changes
+      labels:
+        - "*"
