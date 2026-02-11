@@ -146,6 +146,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+          pattern: EasySave-*
           merge-multiple: true
 
       - name: Detect pre-release
