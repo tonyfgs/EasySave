@@ -371,7 +371,6 @@ public static class AesGcmEncryptor
                 return 4;
             }
 
-            // Lire chunk chiffré + tag
             byte[] encryptedChunk = new byte[chunkSize + 16];
             if (inputStream.Read(encryptedChunk, 0, chunkSize + 16) != chunkSize + 16)
             {
