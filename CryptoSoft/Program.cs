@@ -4,14 +4,12 @@ class Program
 {
     static int Main(string[] args)
     {
-        // Affichage du banner
         Console.WriteLine("═══════════════════════════════════════════════════════");
         Console.WriteLine("  CryptoSoft v1.0 - AES-256-GCM Encryption Tool");
         Console.WriteLine("  Développé pour EasySave");
         Console.WriteLine("═══════════════════════════════════════════════════════");
         Console.WriteLine();
 
-        // Validation du nombre d'arguments
         if (args.Length == 0)
         {
             ShowUsage();
@@ -20,7 +18,6 @@ class Program
 
         string operation = args[0].ToLowerInvariant();
 
-        // Commande spéciale : génération de clé
         if (operation == "genkey")
         {
             string newKey = AesGcmEncryptor.GenerateKey();
@@ -32,7 +29,6 @@ class Program
             return 0;
         }
 
-        // Validation pour encrypt/decrypt
         if (args.Length < 3)
         {
             Console.Error.WriteLine("Erreur : Nombre d'arguments insuffisant.");
@@ -44,21 +40,18 @@ class Program
         string filePath = args[1];
         string keyBase64 = args[2];
 
-        // Validation : clé non vide
         if (string.IsNullOrWhiteSpace(keyBase64))
         {
             Console.Error.WriteLine("Erreur : La clé de chiffrement ne peut pas être vide.");
             return 2;
         }
 
-        // Validation : chemin de fichier non vide
         if (string.IsNullOrWhiteSpace(filePath))
         {
             Console.Error.WriteLine("Erreur : Le chemin du fichier ne peut pas être vide.");
             return 2;
         }
 
-        // Exécution de l'opération
         int exitCode;
 
         switch (operation)
@@ -88,10 +81,7 @@ class Program
 
         return exitCode;
     }
-
-    /// <summary>
-    /// Affiche l'aide d'utilisation du programme.
-    /// </summary>
+    
     private static void ShowUsage()
     {
         Console.WriteLine("UTILISATION :");
@@ -121,9 +111,7 @@ class Program
         Console.WriteLine("  • Standard : NIST/ANSSI 2026");
     }
 
-    /// <summary>
-    /// Retourne une description textuelle du code de retour.
-    /// </summary>
+
     private static string GetExitCodeDescription(int code)
     {
         return code switch
