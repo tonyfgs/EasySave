@@ -1,5 +1,6 @@
 using Application.Events;
 using Application.Handlers;
+using Application.Ports;
 using Application.Services;
 using EasySave.Commands;
 using EasySave.UI;
@@ -43,9 +44,9 @@ public class Program
         var tracker = new ProgressTracker();
 
         var encryptionService = new DisabledEncryptionService();
-        var encryptionConfig = new DisabledEncryptionConfig();
+        IEncryptionConfig encryptionConfig = appConfig;
         var businessSoftwareDetector = new DisabledBusinessSoftwareDetector();
-        var businessSoftwareConfig = new DisabledBusinessSoftwareConfig();
+        IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
 
         var languageService = new LanguageApplicationService(appConfig);
         var backupExecutor = new BackupExecutor(
