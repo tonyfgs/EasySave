@@ -81,7 +81,7 @@ class Program
 
         return exitCode;
     }
-    
+
     private static void ShowUsage()
     {
         Console.WriteLine("UTILISATION :");
