@@ -83,11 +83,11 @@ class Program
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         int exitCode = AesGcmEncryptor.EncryptFile(filePath, keyBase64);
         stopwatch.Stop();
-        
+
         Console.WriteLine();
         Console.WriteLine($"⏱ Temps de chiffrement : {stopwatch.ElapsedMilliseconds} ms");
         Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
-        
+
         return exitCode;
     }
 
@@ -98,11 +98,11 @@ class Program
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         int exitCode = AesGcmEncryptor.DecryptFile(filePath, keyBase64);
         stopwatch.Stop();
-        
+
         Console.WriteLine();
         Console.WriteLine($"⏱ Temps de déchiffrement : {stopwatch.ElapsedMilliseconds} ms");
         Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
-        
+
         return exitCode;
     }
 
