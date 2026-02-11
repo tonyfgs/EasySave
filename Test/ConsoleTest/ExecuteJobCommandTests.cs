@@ -38,7 +38,7 @@ public class ExecuteJobCommandTests
             mockFileSystem.Object, mockPathAdapter.Object,
             mockEventBus.Object, domainService, tracker,
             mockEncryptionService.Object, mockEncryptionConfig.Object,
-            mockDetector.Object);
+            mockDetector.Object, mockDetectorConfig.Object);
 
         var executionService = new BackupExecutionService(
             _mockRepo.Object, executor, strategyFactory,

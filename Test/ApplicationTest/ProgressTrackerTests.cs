@@ -198,4 +198,41 @@ public class ProgressTrackerTests
         var snapshot = _tracker.BuildSnapshot("TestJob");
         Assert.Null(snapshot.BlockReason);
     }
+
+    // --- P2-A: Initialize should clear stale state ---
+
+    [Fact]
+    public void Initialize_AfterBlock_ShouldClearBlockReason()
+    {
+        var files = new List<FileDescriptor>
+        {
+            new("/file.txt", 100, DateTime.Now)
+        };
+
+        _tracker.Initialize(files);
+        _tracker.SetBlockReason("Business software detected (Running)");
+
+        _tracker.Initialize(files);
+
+        var snapshot = _tracker.BuildSnapshot("TestJob");
+        Assert.Null(snapshot.BlockReason);
+    }
+
+    [Fact]
+    public void Initialize_AfterBlock_ShouldClearCurrentFile()
+    {
+        var files = new List<FileDescriptor>
+        {
+            new("/file.txt", 100, DateTime.Now)
+        };
+
+        _tracker.Initialize(files);
+        _tracker.SetCurrentFile("/src/file.txt", "/dst/file.txt");
+
+        _tracker.Initialize(files);
+
+        var snapshot = _tracker.BuildSnapshot("TestJob");
+        Assert.Equal(string.Empty, snapshot.CurrentSourceFile);
+        Assert.Equal(string.Empty, snapshot.CurrentDestFile);
+    }
 }

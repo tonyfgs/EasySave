@@ -51,7 +51,8 @@ public class Program
         var languageService = new LanguageApplicationService(appConfig);
         var backupExecutor = new BackupExecutor(
             fileSystem, pathAdapter, eventBus, domainService, tracker,
-            encryptionService, encryptionConfig, businessSoftwareDetector);
+            encryptionService, encryptionConfig, businessSoftwareDetector,
+            businessSoftwareConfig);
         var strategyFactory = new BackupStrategyFactory();
         var jobService = new JobManagementService(jobRepository, domainService);
         var executionService = new BackupExecutionService(

@@ -17,6 +17,7 @@ public class BackupExecutorTests
     private readonly Mock<IEncryptionService> _mockEncryptionService;
     private readonly Mock<IEncryptionConfig> _mockEncryptionConfig;
     private readonly Mock<IBusinessSoftwareDetector> _mockDetector;
+    private readonly Mock<IBusinessSoftwareConfig> _mockDetectorConfig;
     private readonly BackupDomainService _domainService;
     private readonly ProgressTracker _tracker;
     private readonly BackupExecutor _executor;
@@ -29,6 +30,7 @@ public class BackupExecutorTests
         _mockEncryptionService = new Mock<IEncryptionService>();
         _mockEncryptionConfig = new Mock<IEncryptionConfig>();
         _mockDetector = new Mock<IBusinessSoftwareDetector>();
+        _mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
         _domainService = new BackupDomainService();
         _tracker = new ProgressTracker();
 
@@ -36,6 +38,7 @@ public class BackupExecutorTests
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string>().AsReadOnly());
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
 
         _executor = new BackupExecutor(
             _mockFileSystem.Object,
@@ -45,7 +48,8 @@ public class BackupExecutorTests
             _tracker,
             _mockEncryptionService.Object,
             _mockEncryptionConfig.Object,
-            _mockDetector.Object);
+            _mockDetector.Object,
+            _mockDetectorConfig.Object);
     }
 
     [Fact]
@@ -741,6 +745,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
         var result = _executor.Execute(job, strategy);
@@ -762,6 +767,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
         var capturedEvents = new List<StateChangedEvent>();
@@ -786,6 +792,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
         var capturedEvents = new List<StateChangedEvent>();
@@ -811,6 +818,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
         _executor.Execute(job, strategy);
@@ -832,6 +840,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Unknown);
 
         var result = _executor.Execute(job, strategy);
@@ -853,6 +862,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Error);
 
         var result = _executor.Execute(job, strategy);
@@ -874,6 +884,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
 
         var result = _executor.Execute(job, strategy);
@@ -895,11 +906,90 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
         _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Disabled);
 
         var result = _executor.Execute(job, strategy);
 
         Assert.True(result.Success);
         _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+    }
+
+    // --- P2-B: Encryption exception classification tests ---
+
+    [Fact]
+    public void Execute_EncryptionThrowsException_ShouldLogAsEncryptionFailure()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file.pdf"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+        _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
+            .Throws(new InvalidOperationException("CryptoSoft not found"));
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("Encryption failed"));
+        Assert.DoesNotContain(result.Errors, e => e.Contains("Failed to copy"));
+    }
+
+    [Fact]
+    public void Execute_EncryptionThrowsException_ShouldSetEncryptionTimeMsToNegativeUnknown()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file.pdf"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+        _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
+            .Throws(new InvalidOperationException("CryptoSoft not found"));
+
+        TransferCompletedEvent? capturedEvent = null;
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
+            .Callback<TransferCompletedEvent>(e => capturedEvent = e);
+
+        _executor.Execute(job, strategy);
+
+        Assert.NotNull(capturedEvent);
+        Assert.Equal(-((long)CryptoErrorCode.Unknown + 1), capturedEvent.Transfer.EncryptionTimeMs);
+    }
+
+    // --- P2-C: In-flight detection config guard tests ---
+
+    [Fact]
+    public void Execute_DetectionDisabled_ShouldNotCheckDetectorInFlight()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.True(result.Success);
+        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+        _mockDetector.Verify(d => d.GetStatus(), Times.Never);
     }
 }

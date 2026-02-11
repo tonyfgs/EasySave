@@ -45,7 +45,8 @@ public class BackupExecutionServiceTests
             tracker,
             mockEncryptionService.Object,
             mockEncryptionConfig.Object,
-            _mockDetector.Object);
+            _mockDetector.Object,
+            _mockDetectorConfig.Object);
 
         _service = new BackupExecutionService(
             _mockRepo.Object, executor, strategyFactory,

@@ -323,6 +323,7 @@ package "Application" #E8F5E9 {
     - encryptionService: IEncryptionService
     - encryptionConfig: IEncryptionConfig
     - businessSoftwareDetector: IBusinessSoftwareDetector
+    - businessSoftwareConfig: IBusinessSoftwareConfig
     + Execute(job: BackupJob,\n\t strategy: IBackupStrategy): BackupResult
   }
 
@@ -712,6 +713,7 @@ BackupExecutor ..> IBackupStrategy : receives
 BackupExecutor "1" --> "1" IEncryptionService : encrypts via
 BackupExecutor "1" --> "1" IEncryptionConfig : reads extensions from
 BackupExecutor "1" --> "1" IBusinessSoftwareDetector : checks in-flight via
+BackupExecutor "1" --> "1" IBusinessSoftwareConfig : reads config via
 BackupExecutor ..> BusinessSoftwareDetectedEvent : publishes
 BackupExecutor ..> CryptoResult : uses
 
@@ -914,7 +916,7 @@ note bottom of TransferLog
   Application-layer DTO for log entries.
   EncryptionTimeMs added in v2.0:
   0 = not encrypted, >0 = success (ms),
-  -1 = encryption failed.
+  -(ErrorCode+1) = encryption failed.
 end note
 
 note bottom of IEventBus

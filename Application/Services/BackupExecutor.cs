@@ -16,6 +16,7 @@ public class BackupExecutor
     private readonly IEncryptionService _encryptionService;
     private readonly IEncryptionConfig _encryptionConfig;
     private readonly IBusinessSoftwareDetector _businessSoftwareDetector;
+    private readonly IBusinessSoftwareConfig _businessSoftwareConfig;
 
     public BackupExecutor(
         IFileSystemGateway fileSystem,
@@ -25,7 +26,8 @@ public class BackupExecutor
         ProgressTracker tracker,
         IEncryptionService encryptionService,
         IEncryptionConfig encryptionConfig,
-        IBusinessSoftwareDetector businessSoftwareDetector)
+        IBusinessSoftwareDetector businessSoftwareDetector,
+        IBusinessSoftwareConfig businessSoftwareConfig)
     {
         _fileSystem = fileSystem;
         _pathAdapter = pathAdapter;
@@ -35,6 +37,7 @@ public class BackupExecutor
         _encryptionService = encryptionService;
         _encryptionConfig = encryptionConfig;
         _businessSoftwareDetector = businessSoftwareDetector;
+        _businessSoftwareConfig = businessSoftwareConfig;
     }
 
     public BackupResult Execute(BackupJob job, IBackupStrategy strategy)
@@ -81,15 +84,23 @@ public class BackupExecutor
                     if (encryptedExtensions.Any(ext =>
                             ext.Equals(fileExtension, StringComparison.OrdinalIgnoreCase)))
                     {
-                        var cryptoResult = _encryptionService.EncryptFile(targetFilePath);
-                        if (cryptoResult.Success)
+                        try
                         {
-                            encryptionTimeMs = cryptoResult.DurationMs;
+                            var cryptoResult = _encryptionService.EncryptFile(targetFilePath);
+                            if (cryptoResult.Success)
+                            {
+                                encryptionTimeMs = cryptoResult.DurationMs;
+                            }
+                            else
+                            {
+                                encryptionTimeMs = -((long)cryptoResult.ErrorCode + 1);
+                                errors.Add($"Encryption failed for {file.Path}: {cryptoResult.ErrorMessage}");
+                            }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            encryptionTimeMs = -((long)cryptoResult.ErrorCode + 1);
-                            errors.Add($"Encryption failed for {file.Path}: {cryptoResult.ErrorMessage}");
+                            encryptionTimeMs = -((long)CryptoErrorCode.Unknown + 1);
+                            errors.Add($"Encryption failed for {file.Path}: {ex.Message}");
                         }
                     }
 
@@ -111,21 +122,24 @@ public class BackupExecutor
                     _eventBus.Publish(new StateChangedEvent(snapshot));
 
                     // In-flight business software detection
-                    var businessStatus = _businessSoftwareDetector.GetStatus();
-                    if (businessStatus.IsBlocking())
+                    if (_businessSoftwareConfig.IsDetectionEnabled())
                     {
-                        var blockReason = $"Business software detected ({businessStatus})";
-                        errors.Add(blockReason);
-                        blockedByBusinessSoftware = true;
+                        var businessStatus = _businessSoftwareDetector.GetStatus();
+                        if (businessStatus.IsBlocking())
+                        {
+                            var blockReason = $"Business software detected ({businessStatus})";
+                            errors.Add(blockReason);
+                            blockedByBusinessSoftware = true;
 
-                        _tracker.SetState(JobState.Blocked);
-                        _tracker.SetBlockReason(blockReason);
-                        _tracker.ClearCurrentFile();
-                        var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
-                        _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
-                        _eventBus.Publish(new BusinessSoftwareDetectedEvent(
-                            job.Name, businessStatus, DateTime.Now));
-                        break;
+                            _tracker.SetState(JobState.Blocked);
+                            _tracker.SetBlockReason(blockReason);
+                            _tracker.ClearCurrentFile();
+                            var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
+                            _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
+                            _eventBus.Publish(new BusinessSoftwareDetectedEvent(
+                                job.Name, businessStatus, DateTime.Now));
+                            break;
+                        }
                     }
                 }
                 catch (Exception ex)

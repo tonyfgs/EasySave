@@ -41,7 +41,7 @@ public class ConsoleIntegrationTests
             mockFileSystem.Object, mockPathAdapter.Object,
             mockEventBus.Object, domainService, tracker,
             mockEncryptionService.Object, mockEncryptionConfig.Object,
-            mockDetector.Object);
+            mockDetector.Object, mockDetectorConfig.Object);
         var strategyFactory = new BackupStrategyFactory();
         return new BackupExecutionService(
             mockRepo.Object, executor, strategyFactory,

@@ -20,6 +20,9 @@ public class ProgressTracker
         _totalBytes = files.Sum(f => f.Size);
         _processedFiles = 0;
         _processedBytes = 0;
+        _currentSourceFile = string.Empty;
+        _currentDestFile = string.Empty;
+        _blockReason = null;
         _state = JobState.Active;
     }
 
