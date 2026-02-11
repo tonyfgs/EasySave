@@ -14,6 +14,9 @@ public class BackupExecutorTests
     private readonly Mock<IFileSystemGateway> _mockFileSystem;
     private readonly Mock<IPathAdapter> _mockPathAdapter;
     private readonly Mock<IEventBus> _mockEventBus;
+    private readonly Mock<IEncryptionService> _mockEncryptionService;
+    private readonly Mock<IEncryptionConfig> _mockEncryptionConfig;
+    private readonly Mock<IBusinessSoftwareDetector> _mockDetector;
     private readonly BackupDomainService _domainService;
     private readonly ProgressTracker _tracker;
     private readonly BackupExecutor _executor;
@@ -23,17 +26,26 @@ public class BackupExecutorTests
         _mockFileSystem = new Mock<IFileSystemGateway>();
         _mockPathAdapter = new Mock<IPathAdapter>();
         _mockEventBus = new Mock<IEventBus>();
+        _mockEncryptionService = new Mock<IEncryptionService>();
+        _mockEncryptionConfig = new Mock<IEncryptionConfig>();
+        _mockDetector = new Mock<IBusinessSoftwareDetector>();
         _domainService = new BackupDomainService();
         _tracker = new ProgressTracker();
 
         _mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string>().AsReadOnly());
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
 
         _executor = new BackupExecutor(
             _mockFileSystem.Object,
             _mockPathAdapter.Object,
             _mockEventBus.Object,
             _domainService,
-            _tracker);
+            _tracker,
+            _mockEncryptionService.Object,
+            _mockEncryptionConfig.Object,
+            _mockDetector.Object);
     }
 
     [Fact]

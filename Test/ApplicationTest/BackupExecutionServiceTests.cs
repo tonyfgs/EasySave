@@ -9,31 +9,47 @@ namespace ApplicationTest;
 public class BackupExecutionServiceTests
 {
     private readonly Mock<IJobRepository> _mockRepo;
+    private readonly Mock<IBusinessSoftwareDetector> _mockDetector;
+    private readonly Mock<IBusinessSoftwareConfig> _mockDetectorConfig;
+    private readonly Mock<IEventBus> _mockEventBus;
     private readonly BackupExecutionService _service;
 
     public BackupExecutionServiceTests()
     {
         _mockRepo = new Mock<IJobRepository>();
+        _mockDetector = new Mock<IBusinessSoftwareDetector>();
+        _mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
+        _mockEventBus = new Mock<IEventBus>();
         var strategyFactory = new BackupStrategyFactory();
 
         var mockFileSystem = new Mock<IFileSystemGateway>();
         var mockPathAdapter = new Mock<IPathAdapter>();
-        var mockEventBus = new Mock<IEventBus>();
+        var mockEncryptionService = new Mock<IEncryptionService>();
+        var mockEncryptionConfig = new Mock<IEncryptionConfig>();
         var domainService = new BackupDomainService();
         var tracker = new ProgressTracker();
 
         mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
         mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
             .Returns(new List<FileDescriptor>());
+        mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string>().AsReadOnly());
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
 
         var executor = new BackupExecutor(
             mockFileSystem.Object,
             mockPathAdapter.Object,
-            mockEventBus.Object,
+            _mockEventBus.Object,
             domainService,
-            tracker);
+            tracker,
+            mockEncryptionService.Object,
+            mockEncryptionConfig.Object,
+            _mockDetector.Object);
 
-        _service = new BackupExecutionService(_mockRepo.Object, executor, strategyFactory);
+        _service = new BackupExecutionService(
+            _mockRepo.Object, executor, strategyFactory,
+            _mockDetector.Object, _mockDetectorConfig.Object, _mockEventBus.Object);
     }
 
     [Fact]

@@ -13,19 +13,28 @@ public class BackupExecutor
     private readonly IEventBus _eventBus;
     private readonly BackupDomainService _domainService;
     private readonly ProgressTracker _tracker;
+    private readonly IEncryptionService _encryptionService;
+    private readonly IEncryptionConfig _encryptionConfig;
+    private readonly IBusinessSoftwareDetector _businessSoftwareDetector;
 
     public BackupExecutor(
         IFileSystemGateway fileSystem,
         IPathAdapter pathAdapter,
         IEventBus eventBus,
         BackupDomainService domainService,
-        ProgressTracker tracker)
+        ProgressTracker tracker,
+        IEncryptionService encryptionService,
+        IEncryptionConfig encryptionConfig,
+        IBusinessSoftwareDetector businessSoftwareDetector)
     {
         _fileSystem = fileSystem;
         _pathAdapter = pathAdapter;
         _eventBus = eventBus;
         _domainService = domainService;
         _tracker = tracker;
+        _encryptionService = encryptionService;
+        _encryptionConfig = encryptionConfig;
+        _businessSoftwareDetector = businessSoftwareDetector;
     }
 
     public BackupResult Execute(BackupJob job, IBackupStrategy strategy)

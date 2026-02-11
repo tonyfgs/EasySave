@@ -42,13 +42,20 @@ public class Program
         var domainService = new BackupDomainService();
         var tracker = new ProgressTracker();
 
+        var encryptionService = new DisabledEncryptionService();
+        var encryptionConfig = new DisabledEncryptionConfig();
+        var businessSoftwareDetector = new DisabledBusinessSoftwareDetector();
+        var businessSoftwareConfig = new DisabledBusinessSoftwareConfig();
+
         var languageService = new LanguageApplicationService(appConfig);
         var backupExecutor = new BackupExecutor(
-            fileSystem, pathAdapter, eventBus, domainService, tracker);
+            fileSystem, pathAdapter, eventBus, domainService, tracker,
+            encryptionService, encryptionConfig, businessSoftwareDetector);
         var strategyFactory = new BackupStrategyFactory();
         var jobService = new JobManagementService(jobRepository, domainService);
         var executionService = new BackupExecutionService(
-            jobRepository, backupExecutor, strategyFactory);
+            jobRepository, backupExecutor, strategyFactory,
+            businessSoftwareDetector, businessSoftwareConfig, eventBus);
 
         var languageManager = new LanguageManager(languageService);
         var inputParser = new InputParser();
