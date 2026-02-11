@@ -31,7 +31,7 @@ public class JobListViewModel: ViewModelBase
         }
     }
 
-    public bool HasSelection => HasSelection != null;
+    public bool HasSelection => SelectedJob != null;
     public ICommand LoadJobsCommand;
     public ICommand DeleteJobsCommand;
     public ICommand NavigateToCreateCommand;
@@ -44,6 +44,16 @@ public class JobListViewModel: ViewModelBase
         _backupExecutionService = backupExecutionService;
         Jobs = new ObservableCollection<BackupJob>();
         LoadJobsCommand = new RelayCommand(param => LoadJobs());
+        DeleteJobsCommand = new RelayCommand(param => DeleteJob());
+        
+        NavigateToCreateCommand = new RelayCommand(async _ => 
+            await Shell.Current.GoToAsync("JobFormPage"));
+
+        NavigateToEditCommand = new RelayCommand(async _ => 
+        {
+            if (SelectedJob != null)
+                await Shell.Current.GoToAsync($"JobFormPage?JobId={SelectedJob.Id}");
+        });
     }
 
 
@@ -51,6 +61,16 @@ public class JobListViewModel: ViewModelBase
     {
         List<BackupJob> backupJobs = _jobManagementService.ListJobs();
         Jobs = new ObservableCollection<BackupJob>(backupJobs);
+    }
+
+    public void DeleteJob()
+    {
+        if (SelectedJob != null)
+        {
+            _jobManagementService.DeleteJob(SelectedJob.Id);
+            Jobs.Remove(SelectedJob);
+            SelectedJob = null;
+        }
     }
 
 }
