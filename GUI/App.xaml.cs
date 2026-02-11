@@ -1,4 +1,5 @@
-﻿using GUI.ViewModels;
+﻿using GUI.Helpers;
+using GUI.ViewModels;
 
 namespace GUI;
 
@@ -7,6 +8,9 @@ public partial class App : Microsoft.Maui.Controls.Application
     public App()
     {
         InitializeComponent();
+
+        // Initialize services before creating any ViewModels
+        ServiceLocator.Initialize();
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
