@@ -10,6 +10,7 @@ public class JobStateSerializationTests
     [InlineData(JobState.Inactive, "\"INACTIVE\"")]
     [InlineData(JobState.End, "\"END\"")]
     [InlineData(JobState.Error, "\"ERROR\"")]
+    [InlineData(JobState.Blocked, "\"BLOCKED\"")]
     public void JobState_ShouldSerializeAsUppercase(JobState state, string expected)
     {
         var json = JsonSerializer.Serialize(state);
@@ -21,6 +22,7 @@ public class JobStateSerializationTests
     [InlineData("\"INACTIVE\"", JobState.Inactive)]
     [InlineData("\"END\"", JobState.End)]
     [InlineData("\"ERROR\"", JobState.Error)]
+    [InlineData("\"BLOCKED\"", JobState.Blocked)]
     public void JobState_ShouldDeserializeFromUppercase(string json, JobState expected)
     {
         var result = JsonSerializer.Deserialize<JobState>(json);

@@ -14,6 +14,7 @@ public class JobStateJsonConverter : JsonConverter<JobState>
             "INACTIVE" => JobState.Inactive,
             "END" => JobState.End,
             "ERROR" => JobState.Error,
+            "BLOCKED" => JobState.Blocked,
             _ => throw new JsonException($"Unknown JobState value: {value}")
         };
     }
@@ -26,6 +27,7 @@ public class JobStateJsonConverter : JsonConverter<JobState>
             JobState.Inactive => "INACTIVE",
             JobState.End => "END",
             JobState.Error => "ERROR",
+            JobState.Blocked => "BLOCKED",
             _ => throw new JsonException($"Unknown JobState value: {value}")
         };
         writer.WriteStringValue(text);
