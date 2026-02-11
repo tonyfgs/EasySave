@@ -46,6 +46,24 @@ public class BackupExecutionService
                 continue;
             }
 
+            // Pre-flight business software detection
+            if (_detectorConfig.IsDetectionEnabled())
+            {
+                var status = _detector.GetStatus();
+                if (status is BusinessSoftwareStatus.Running
+                    or BusinessSoftwareStatus.Unknown
+                    or BusinessSoftwareStatus.Error)
+                {
+                    _eventBus.Publish(new BusinessSoftwareDetectedEvent(
+                        job.Name, status, DateTime.Now));
+                    var failResult = BackupResult.Fail(
+                        new List<string> { "Business software detected" },
+                        TimeSpan.Zero);
+                    results.Add(new JobExecutionResult(jobId, failResult));
+                    continue;
+                }
+            }
+
             var strategy = _strategyFactory.Create(job.Type);
             var result = _executor.Execute(job, strategy);
             _repository.Update(job);

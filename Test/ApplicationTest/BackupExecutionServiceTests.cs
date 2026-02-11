@@ -105,4 +105,89 @@ public class BackupExecutionServiceTests
 
         Assert.Equal(2, results.Count);
     }
+
+    // --- Pre-flight business software detection tests ---
+
+    [Fact]
+    public void ExecuteJobs_DetectionEnabled_Running_ShouldSkipJobWithFailResult()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        var results = _service.ExecuteJobs(new List<int> { 1 });
+
+        Assert.Single(results);
+        Assert.False(results[0].Result.Success);
+        Assert.Contains(results[0].Result.Errors, e => e.Contains("Business software"));
+    }
+
+    [Fact]
+    public void ExecuteJobs_DetectionEnabled_Running_ShouldPublishBusinessSoftwareDetectedEvent()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        _service.ExecuteJobs(new List<int> { 1 });
+
+        _mockEventBus.Verify(bus => bus.Publish(It.Is<BusinessSoftwareDetectedEvent>(
+            e => e.JobName == "Job1" && e.Status == BusinessSoftwareStatus.Running)), Times.Once);
+    }
+
+    [Fact]
+    public void ExecuteJobs_DetectionEnabled_NotRunning_ShouldExecuteNormally()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+
+        var results = _service.ExecuteJobs(new List<int> { 1 });
+
+        Assert.Single(results);
+        Assert.True(results[0].Result.Success);
+    }
+
+    [Fact]
+    public void ExecuteJobs_DetectionDisabled_ShouldNotCheckDetector()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+
+        _service.ExecuteJobs(new List<int> { 1 });
+
+        _mockDetector.Verify(d => d.GetStatus(), Times.Never);
+    }
+
+    [Fact]
+    public void ExecuteJobs_DetectionEnabled_Unknown_ShouldBlock_FailClosed()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Unknown);
+
+        var results = _service.ExecuteJobs(new List<int> { 1 });
+
+        Assert.Single(results);
+        Assert.False(results[0].Result.Success);
+    }
+
+    [Fact]
+    public void ExecuteJobs_DetectionEnabled_Error_ShouldBlock_FailClosed()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Error);
+
+        var results = _service.ExecuteJobs(new List<int> { 1 });
+
+        Assert.Single(results);
+        Assert.False(results[0].Result.Success);
+    }
 }
