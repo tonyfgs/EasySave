@@ -88,7 +88,7 @@ public class BackupExecutor
                         }
                         else
                         {
-                            encryptionTimeMs = -1;
+                            encryptionTimeMs = -((long)cryptoResult.ErrorCode + 1);
                             errors.Add($"Encryption failed for {file.Path}: {cryptoResult.ErrorMessage}");
                         }
                     }
@@ -112,11 +112,9 @@ public class BackupExecutor
 
                     // In-flight business software detection
                     var businessStatus = _businessSoftwareDetector.GetStatus();
-                    if (businessStatus is BusinessSoftwareStatus.Running
-                        or BusinessSoftwareStatus.Unknown
-                        or BusinessSoftwareStatus.Error)
+                    if (businessStatus.IsBlocking())
                     {
-                        var blockReason = "Business software detected";
+                        var blockReason = $"Business software detected ({businessStatus})";
                         errors.Add(blockReason);
                         blockedByBusinessSoftware = true;
 

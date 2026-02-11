@@ -667,7 +667,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_EncryptionFails_ShouldSetEncryptionTimeMsToMinusOne()
+    public void Execute_EncryptionFails_ShouldSetEncryptionTimeMsToNegativeErrorCode()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -683,7 +683,7 @@ public class BackupExecutorTests
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
             .Returns(new CryptoResult
             {
-                Success = false, DurationMs = -1,
+                Success = false, DurationMs = 0,
                 ErrorCode = CryptoErrorCode.IoError, ErrorMessage = "CryptoSoft crashed"
             });
 
@@ -694,7 +694,9 @@ public class BackupExecutorTests
         var result = _executor.Execute(job, strategy);
 
         Assert.NotNull(capturedEvent);
-        Assert.Equal(-1, capturedEvent.Transfer.EncryptionTimeMs);
+        // IoError = 3, so EncryptionTimeMs = -(3+1) = -4
+        Assert.Equal(-((long)CryptoErrorCode.IoError + 1), capturedEvent.Transfer.EncryptionTimeMs);
+        Assert.True(capturedEvent.Transfer.EncryptionTimeMs < 0);
         Assert.False(result.Success);
         Assert.Contains(result.Errors, e => e.Contains("CryptoSoft crashed"));
     }

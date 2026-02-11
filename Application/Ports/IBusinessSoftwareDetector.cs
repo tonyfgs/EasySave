@@ -13,3 +13,11 @@ public enum BusinessSoftwareStatus
     Unknown,
     Error
 }
+
+public static class BusinessSoftwareStatusExtensions
+{
+    public static bool IsBlocking(this BusinessSoftwareStatus status) =>
+        status is BusinessSoftwareStatus.Running
+            or BusinessSoftwareStatus.Unknown
+            or BusinessSoftwareStatus.Error;
+}

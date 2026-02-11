@@ -50,14 +50,12 @@ public class BackupExecutionService
             if (_detectorConfig.IsDetectionEnabled())
             {
                 var status = _detector.GetStatus();
-                if (status is BusinessSoftwareStatus.Running
-                    or BusinessSoftwareStatus.Unknown
-                    or BusinessSoftwareStatus.Error)
+                if (status.IsBlocking())
                 {
                     _eventBus.Publish(new BusinessSoftwareDetectedEvent(
                         job.Name, status, DateTime.Now));
                     var failResult = BackupResult.Fail(
-                        new List<string> { "Business software detected" },
+                        new List<string> { $"Business software detected ({status})" },
                         TimeSpan.Zero);
                     results.Add(new JobExecutionResult(jobId, failResult));
                     continue;
