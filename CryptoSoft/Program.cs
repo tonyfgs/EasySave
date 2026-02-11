@@ -18,17 +18,20 @@ class Program
 
         string operation = args[0].ToLowerInvariant();
 
+        // Génération de clé (pas de stockage)
         if (operation == "genkey")
         {
-            string newKey = AesGcmEncryptor.GenerateKey();
-            Console.WriteLine("✓ Nouvelle clé AES-256 générée :");
-            Console.WriteLine();
-            Console.WriteLine($"  {newKey}");
-            Console.WriteLine();
-            Console.WriteLine("⚠ Conservez cette clé en lieu sûr ! Elle est nécessaire pour déchiffrer vos fichiers.");
+            return HandleGenerateKey();
+        }
+
+        // Commandes help
+        if (operation == "help")
+        {
+            ShowUsage();
             return 0;
         }
 
+        // Chiffrement/déchiffrement nécessitent 3 arguments
         if (args.Length < 3)
         {
             Console.Error.WriteLine("Erreur : Nombre d'arguments insuffisant.");
@@ -52,48 +55,83 @@ class Program
             return 2;
         }
 
-        int exitCode;
-
-        switch (operation)
+        return operation switch
         {
-            case "encrypt":
-                Console.WriteLine($"🔒 Chiffrement de : {filePath}");
-                Console.WriteLine();
-                exitCode = AesGcmEncryptor.EncryptFile(filePath, keyBase64);
-                break;
+            "encrypt" => HandleEncrypt(filePath, keyBase64),
+            "decrypt" => HandleDecrypt(filePath, keyBase64),
+            _ => HandleUnknownOperation(operation)
+        };
+    }
 
-            case "decrypt":
-                Console.WriteLine($"🔓 Déchiffrement de : {filePath}");
-                Console.WriteLine();
-                exitCode = AesGcmEncryptor.DecryptFile(filePath, keyBase64);
-                break;
-
-            default:
-                Console.Error.WriteLine($"Erreur : Opération inconnue '{args[0]}'");
-                Console.Error.WriteLine("Opérations supportées : encrypt, decrypt, genkey");
-                Console.Error.WriteLine();
-                ShowUsage();
-                return 2;
-        }
-
+    private static int HandleGenerateKey()
+    {
+        string newKey = AesGcmEncryptor.GenerateKey();
+        Console.WriteLine("✓ Nouvelle clé AES-256 générée :");
         Console.WriteLine();
-        Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
+        Console.WriteLine($"  {newKey}");
+        Console.WriteLine();
+        Console.WriteLine("⚠ IMPORTANT : Sauvegardez cette clé dans un endroit sûr !");
+        Console.WriteLine("  Cette clé sera nécessaire pour déchiffrer vos fichiers.");
+        Console.WriteLine("  CryptoSoft ne stocke aucune clé - c'est votre responsabilité.");
+        return 0;
+    }
 
+    private static int HandleEncrypt(string filePath, string keyBase64)
+    {
+        Console.WriteLine($"🔒 Chiffrement de : {filePath}");
+        Console.WriteLine();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        int exitCode = AesGcmEncryptor.EncryptFile(filePath, keyBase64);
+        stopwatch.Stop();
+        
+        Console.WriteLine();
+        Console.WriteLine($"⏱ Temps de chiffrement : {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
+        
         return exitCode;
+    }
+
+    private static int HandleDecrypt(string filePath, string keyBase64)
+    {
+        Console.WriteLine($"🔓 Déchiffrement de : {filePath}");
+        Console.WriteLine();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        int exitCode = AesGcmEncryptor.DecryptFile(filePath, keyBase64);
+        stopwatch.Stop();
+        
+        Console.WriteLine();
+        Console.WriteLine($"⏱ Temps de déchiffrement : {stopwatch.ElapsedMilliseconds} ms");
+        Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
+        
+        return exitCode;
+    }
+
+    private static int HandleUnknownOperation(string operation)
+    {
+        Console.Error.WriteLine($"Erreur : Opération inconnue '{operation}'");
+        Console.Error.WriteLine();
+        ShowUsage();
+        return 2;
     }
 
     private static void ShowUsage()
     {
         Console.WriteLine("UTILISATION :");
         Console.WriteLine();
+        Console.WriteLine("  Génération de clé :");
+        Console.WriteLine("    CryptoSoft.exe genkey");
+        Console.WriteLine("    → Génère une nouvelle clé AES-256. Sauvegardez-la vous-même !");
+        Console.WriteLine();
         Console.WriteLine("  Chiffrement :");
         Console.WriteLine("    CryptoSoft.exe encrypt \"C:\\dossier\\fichier.pdf\" \"cléBase64_32octets==\"");
+        Console.WriteLine("    → Crée fichier.pdf.crypt");
         Console.WriteLine();
         Console.WriteLine("  Déchiffrement :");
         Console.WriteLine("    CryptoSoft.exe decrypt \"C:\\dossier\\fichier.pdf.crypt\" \"cléBase64_32octets==\"");
+        Console.WriteLine("    → Recrée fichier.pdf");
         Console.WriteLine();
-        Console.WriteLine("  Génération de clé :");
-        Console.WriteLine("    CryptoSoft.exe genkey");
+        Console.WriteLine("  Aide :");
+        Console.WriteLine("    CryptoSoft.exe help");
         Console.WriteLine();
         Console.WriteLine("CODES DE RETOUR :");
         Console.WriteLine("  0 - Succès");
@@ -109,8 +147,14 @@ class Program
         Console.WriteLine("  • Nonce : 12 octets aléatoires par fichier");
         Console.WriteLine("  • Tag : 16 octets d'authentification");
         Console.WriteLine("  • Standard : NIST/ANSSI 2026");
+        Console.WriteLine("  • Support : Fichiers de toute taille");
+        Console.WriteLine("  • Nettoyage automatique : Suppression artefacts en cas d'échec");
+        Console.WriteLine();
+        Console.WriteLine("GESTION DES CLÉS :");
+        Console.WriteLine("  • CryptoSoft ne stocke AUCUNE clé");
+        Console.WriteLine("  • Vous devez sauvegarder vos clés vous-même");
+        Console.WriteLine("  • Perdre une clé = perdre l'accès aux fichiers chiffrés");
     }
-
 
     private static string GetExitCodeDescription(int code)
     {
@@ -126,4 +170,3 @@ class Program
         };
     }
 }
-
