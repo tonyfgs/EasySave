@@ -74,6 +74,24 @@ public class BackupExecutor
                     filesProcessed++;
                     bytesTransferred += bytesCopied;
 
+                    long encryptionTimeMs = 0;
+                    var encryptedExtensions = _encryptionConfig.GetEncryptedExtensions();
+                    var fileExtension = Path.GetExtension(file.Path);
+                    if (encryptedExtensions.Any(ext =>
+                            ext.Equals(fileExtension, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var cryptoResult = _encryptionService.EncryptFile(targetFilePath);
+                        if (cryptoResult.Success)
+                        {
+                            encryptionTimeMs = cryptoResult.DurationMs;
+                        }
+                        else
+                        {
+                            encryptionTimeMs = -1;
+                            errors.Add($"Encryption failed for {file.Path}: {cryptoResult.ErrorMessage}");
+                        }
+                    }
+
                     _tracker.FileProcessed(file);
 
                     var transferLog = new TransferLog
@@ -84,7 +102,7 @@ public class BackupExecutor
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
                         FileSize = file.Size,
                         TransferTimeMs = transferStopwatch.ElapsedMilliseconds,
-                        EncryptionTimeMs = 0
+                        EncryptionTimeMs = encryptionTimeMs
                     };
                     _eventBus.Publish(new TransferCompletedEvent(transferLog));
 

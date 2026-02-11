@@ -547,4 +547,177 @@ public class BackupExecutorTests
 
         _mockFileSystem.Verify(fs => fs.EnsureDirectory(normalizedTarget), Times.Once);
     }
+
+    // --- Per-file encryption tests ---
+
+    [Fact]
+    public void Execute_EncryptedExtension_ShouldCallEncryptFileAfterCopy()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "secret.docx"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".docx" }.AsReadOnly());
+        _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
+            .Returns(new CryptoResult { Success = true, DurationMs = 75, ErrorCode = CryptoErrorCode.None });
+
+        _executor.Execute(job, strategy);
+
+        _mockEncryptionService.Verify(
+            s => s.EncryptFile(It.Is<string>(p => p.Contains("secret.docx"))),
+            Times.Once);
+    }
+
+    [Fact]
+    public void Execute_EncryptedExtension_ShouldSetEncryptionTimeMsFromCryptoResult()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file.pdf"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+        _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
+            .Returns(new CryptoResult { Success = true, DurationMs = 200, ErrorCode = CryptoErrorCode.None });
+
+        TransferCompletedEvent? capturedEvent = null;
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
+            .Callback<TransferCompletedEvent>(e => capturedEvent = e);
+
+        _executor.Execute(job, strategy);
+
+        Assert.NotNull(capturedEvent);
+        Assert.Equal(200, capturedEvent.Transfer.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void Execute_NonEncryptedExtension_ShouldNotCallEncryptFile()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "readme.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+
+        _executor.Execute(job, strategy);
+
+        _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_NonEncryptedExtension_EncryptionTimeMsShouldBeZero()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "readme.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+
+        TransferCompletedEvent? capturedEvent = null;
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
+            .Callback<TransferCompletedEvent>(e => capturedEvent = e);
+
+        _executor.Execute(job, strategy);
+
+        Assert.NotNull(capturedEvent);
+        Assert.Equal(0, capturedEvent.Transfer.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void Execute_EmptyEncryptedExtensions_ShouldNotCallEncrypt()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "secret.docx"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string>().AsReadOnly());
+
+        _executor.Execute(job, strategy);
+
+        _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Execute_EncryptionFails_ShouldSetEncryptionTimeMsToMinusOne()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file.pdf"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+        _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
+            .Returns(new CryptoResult
+            {
+                Success = false, DurationMs = -1,
+                ErrorCode = CryptoErrorCode.IoError, ErrorMessage = "CryptoSoft crashed"
+            });
+
+        TransferCompletedEvent? capturedEvent = null;
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
+            .Callback<TransferCompletedEvent>(e => capturedEvent = e);
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.NotNull(capturedEvent);
+        Assert.Equal(-1, capturedEvent.Transfer.EncryptionTimeMs);
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, e => e.Contains("CryptoSoft crashed"));
+    }
+
+    [Fact]
+    public void Execute_EncryptionExtensionComparison_ShouldBeCaseInsensitive()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file.PDF"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string> { ".pdf" }.AsReadOnly());
+        _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
+            .Returns(new CryptoResult { Success = true, DurationMs = 50, ErrorCode = CryptoErrorCode.None });
+
+        _executor.Execute(job, strategy);
+
+        _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Once);
+    }
 }
