@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GUI.ViewModels"
+             x:Class="GUI.Views.ExecuteJobView"
+             x:DataType="vm:ExecuteJobViewModel">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Padding="20">
+
+        <!-- Header -->
+        <Label Grid.Row="0" Text="Execute Backups"
+               FontSize="24" FontAttributes="Bold" Margin="0,0,0,10"/>
+
+        <!-- Job selection list with checkboxes -->
+        <Border Grid.Row="1" Stroke="#E0E0E0" StrokeThickness="1"
+                StrokeShape="RoundRectangle 8" Padding="0">
+            <CollectionView ItemsSource="{Binding AvailableJobs}"
+                            SelectionMode="None">
+                <CollectionView.EmptyView>
+                    <Label Text="No jobs available. Create a job first."
+                           HorizontalOptions="Center" VerticalOptions="Center"
+                           FontSize="16" TextColor="Gray" Margin="20"/>
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="15,8" ColumnDefinitions="Auto,*,Auto">
+                            <CheckBox Grid.Column="0"
+                                      IsEnabled="{Binding Source={RelativeSource AncestorType={x:Type vm:ExecuteJobViewModel}}, Path=IsExecuting, Converter={StaticResource InverseBoolConverter}}"
+                                      CheckedChanged="OnJobCheckedChanged"
+                                      VerticalOptions="Center"/>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" Margin="10,0">
+                                <Label Text="{Binding Name}" FontSize="15" FontAttributes="Bold"/>
+                                <Label Text="{Binding SourcePath}" FontSize="11" TextColor="Gray"/>
+                            </VerticalStackLayout>
+                            <Label Grid.Column="2"
+                                   Text="{Binding Type}"
+                                   FontSize="12" TextColor="#1976D2"
+                                   VerticalOptions="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Border>
+
+        <!-- Progress section -->
+        <VerticalStackLayout Grid.Row="2" Spacing="8" Margin="0,10,0,10">
+            <ProgressBar Progress="{Binding OverallProgress, Converter={StaticResource IntToDoubleConverter}}"
+                         ProgressColor="#1976D2"
+                         IsVisible="{Binding IsExecuting}"/>
+            <Label Text="{Binding StatusMessage}"
+                   TextColor="Gray" FontSize="14"/>
+
+            <!-- Results -->
+            <CollectionView ItemsSource="{Binding Results}"
+                            IsVisible="{Binding Results.Count, Converter={StaticResource IntToBoolConverter}}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="x:Object">
+                        <HorizontalStackLayout Spacing="8" Padding="5,2">
+                            <Label Text="●" FontSize="12"
+                                   TextColor="{Binding Result.Success, Converter={StaticResource BoolToColorConverter}}"/>
+                            <Label FontSize="13">
+                                <Label.Text>
+                                    <MultiBinding StringFormat="Job {0}: {1}">
+                                        <Binding Path="JobId"/>
+                                        <Binding Path="Result.Success"
+                                                 Converter="{StaticResource BoolToResultTextConverter}"/>
+                                    </MultiBinding>
+                                </Label.Text>
+                            </Label>
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+
+        <!-- Action Buttons -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="10">
+            <Button Grid.Column="0"
+                    Text="Execute Selected"
+                    Command="{Binding ExecuteSelectedCommand}"
+                    BackgroundColor="#1976D2" TextColor="White"/>
+            <Button Grid.Column="1"
+                    Text="Execute All"
+                    Command="{Binding ExecuteAllCommand}"
+                    BackgroundColor="#2E7D32" TextColor="White"/>
+        </Grid>
+
+    </Grid>
+</ContentView>
