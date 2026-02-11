@@ -720,4 +720,182 @@ public class BackupExecutorTests
 
         _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Once);
     }
+
+    // --- In-flight business software detection tests ---
+
+    [Fact]
+    public void Execute_BusinessSoftwareRunning_ShouldStopAfterCurrentFile()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now),
+            new(Path.Combine(SourcePath, "file3.txt"), 300, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        var result = _executor.Execute(job, strategy);
+
+        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareRunning_ShouldSetStateToBlocked()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        var capturedEvents = new List<StateChangedEvent>();
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
+
+        _executor.Execute(job, strategy);
+
+        var lastSnapshot = capturedEvents.Last().Snapshot;
+        Assert.Equal(JobState.Blocked, lastSnapshot.State);
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareRunning_ShouldSetBlockReason()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        var capturedEvents = new List<StateChangedEvent>();
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
+
+        _executor.Execute(job, strategy);
+
+        var lastSnapshot = capturedEvents.Last().Snapshot;
+        Assert.NotNull(lastSnapshot.BlockReason);
+        Assert.Contains("Business software", lastSnapshot.BlockReason);
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareRunning_ShouldPublishBusinessSoftwareDetectedEvent()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        _executor.Execute(job, strategy);
+
+        _mockEventBus.Verify(bus => bus.Publish(It.Is<BusinessSoftwareDetectedEvent>(
+            e => e.JobName == "TestJob" && e.Status == BusinessSoftwareStatus.Running)), Times.Once);
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareUnknown_ShouldBlock_FailClosed()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Unknown);
+
+        var result = _executor.Execute(job, strategy);
+
+        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareError_ShouldBlock_FailClosed()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Error);
+
+        var result = _executor.Execute(job, strategy);
+
+        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareNotRunning_ShouldProcessAllFiles()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.True(result.Success);
+        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void Execute_BusinessSoftwareDisabled_ShouldProcessAllFiles()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Disabled);
+
+        var result = _executor.Execute(job, strategy);
+
+        Assert.True(result.Success);
+        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+    }
 }

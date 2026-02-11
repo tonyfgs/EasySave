@@ -43,6 +43,7 @@ public class BackupExecutor
         var errors = new List<string>();
         int filesProcessed = 0;
         long bytesTransferred = 0;
+        bool blockedByBusinessSoftware = false;
 
         try
         {
@@ -108,6 +109,26 @@ public class BackupExecutor
 
                     var snapshot = _tracker.BuildSnapshot(job.Name);
                     _eventBus.Publish(new StateChangedEvent(snapshot));
+
+                    // In-flight business software detection
+                    var businessStatus = _businessSoftwareDetector.GetStatus();
+                    if (businessStatus is BusinessSoftwareStatus.Running
+                        or BusinessSoftwareStatus.Unknown
+                        or BusinessSoftwareStatus.Error)
+                    {
+                        var blockReason = "Business software detected";
+                        errors.Add(blockReason);
+                        blockedByBusinessSoftware = true;
+
+                        _tracker.SetState(JobState.Blocked);
+                        _tracker.SetBlockReason(blockReason);
+                        _tracker.ClearCurrentFile();
+                        var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
+                        _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
+                        _eventBus.Publish(new BusinessSoftwareDetectedEvent(
+                            job.Name, businessStatus, DateTime.Now));
+                        break;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -131,14 +152,17 @@ public class BackupExecutor
                 }
             }
 
-            _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
-            _tracker.ClearCurrentFile();
-            var endSnapshot = _tracker.BuildSnapshot(job.Name);
-            _eventBus.Publish(new StateChangedEvent(endSnapshot));
-
-            if (strategy is FullBackupStrategy)
+            if (!blockedByBusinessSoftware)
             {
-                job.MarkFullBackupCompleted(DateTime.Now);
+                _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
+                _tracker.ClearCurrentFile();
+                var endSnapshot = _tracker.BuildSnapshot(job.Name);
+                _eventBus.Publish(new StateChangedEvent(endSnapshot));
+
+                if (strategy is FullBackupStrategy)
+                {
+                    job.MarkFullBackupCompleted(DateTime.Now);
+                }
             }
         }
         catch (Exception ex)
