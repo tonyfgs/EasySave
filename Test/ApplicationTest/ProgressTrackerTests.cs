@@ -171,4 +171,31 @@ public class ProgressTrackerTests
         var snapshot = _tracker.BuildSnapshot("TestJob");
         Assert.Equal(JobState.End, snapshot.State);
     }
+
+    [Fact]
+    public void SetBlockReason_ShouldAppearInSnapshot()
+    {
+        _tracker.Initialize(new List<FileDescriptor>());
+        _tracker.SetBlockReason("Business software detected: calc.exe");
+
+        var snapshot = _tracker.BuildSnapshot("TestJob");
+        Assert.Equal("Business software detected: calc.exe", snapshot.BlockReason);
+    }
+
+    [Fact]
+    public void BuildSnapshot_Default_BlockReasonShouldBeNull()
+    {
+        var snapshot = _tracker.BuildSnapshot("TestJob");
+        Assert.Null(snapshot.BlockReason);
+    }
+
+    [Fact]
+    public void Reset_ShouldClearBlockReason()
+    {
+        _tracker.SetBlockReason("something");
+        _tracker.Reset();
+
+        var snapshot = _tracker.BuildSnapshot("TestJob");
+        Assert.Null(snapshot.BlockReason);
+    }
 }

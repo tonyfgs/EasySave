@@ -127,7 +127,7 @@ public class JsonStateManagerTests : IDisposable
         {
             "Name", "Timestamp", "State", "TotalFiles", "TotalSize",
             "Progress", "FilesRemaining", "SizeRemaining",
-            "CurrentSourceFile", "CurrentDestFile"
+            "CurrentSourceFile", "CurrentDestFile", "BlockReason"
         };
         var element = doc.RootElement[0];
         var actualFields = element.EnumerateObject().Select(p => p.Name).ToHashSet();

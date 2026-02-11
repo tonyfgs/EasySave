@@ -74,7 +74,8 @@ public class BackupExecutor
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
                         FileSize = file.Size,
-                        TransferTimeMs = transferStopwatch.ElapsedMilliseconds
+                        TransferTimeMs = transferStopwatch.ElapsedMilliseconds,
+                        EncryptionTimeMs = 0
                     };
                     _eventBus.Publish(new TransferCompletedEvent(transferLog));
 
@@ -92,7 +93,8 @@ public class BackupExecutor
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
                         FileSize = file.Size,
-                        TransferTimeMs = -1
+                        TransferTimeMs = -1,
+                        EncryptionTimeMs = 0
                     };
                     _eventBus.Publish(new TransferCompletedEvent(errorLog));
 
