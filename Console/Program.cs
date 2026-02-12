@@ -46,7 +46,7 @@ public class Program
         var backupExecutor = new BackupExecutor(
             fileSystem, pathAdapter, eventBus, domainService, tracker);
         var strategyFactory = new BackupStrategyFactory();
-        var jobService = new JobManagementService(jobRepository, domainService);
+        var jobService = new JobManagementService(jobRepository);
         var executionService = new BackupExecutionService(
             jobRepository, backupExecutor, strategyFactory);
 

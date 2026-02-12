@@ -794,8 +794,8 @@ end note
 
 note right of BackupDomainService
   **Stateless Domain Service**.
-  ValidateJobLimit() enforces MAX_JOBS rule
-  (configurable, not hardcoded in entity).
+  ValidateJobLimit() retained but unused since v2.0
+  (job limit removed per FR-02).
   Orchestrates strategy-based file selection.
 end note
 

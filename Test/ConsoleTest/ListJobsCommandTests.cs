@@ -14,8 +14,7 @@ public class ListJobsCommandTests
     public ListJobsCommandTests()
     {
         _mockRepo = new Mock<IJobRepository>();
-        var domainService = new BackupDomainService();
-        _jobService = new JobManagementService(_mockRepo.Object, domainService);
+        _jobService = new JobManagementService(_mockRepo.Object);
     }
 
     [Fact]

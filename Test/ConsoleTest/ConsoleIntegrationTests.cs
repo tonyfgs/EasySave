@@ -22,14 +22,12 @@ public class ConsoleIntegrationTests
     public void FullFlow_CreateAndListJob_ShouldShowCreatedJob()
     {
         var mockRepo = new Mock<IJobRepository>();
-        mockRepo.Setup(r => r.Count()).Returns(0);
         var createdJobs = new List<BackupJob>();
         mockRepo.Setup(r => r.Save(It.IsAny<BackupJob>()))
             .Callback<BackupJob>(j => { j.Id = 1; createdJobs.Add(j); });
         mockRepo.Setup(r => r.GetAll()).Returns(() => new List<BackupJob>(createdJobs));
 
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(mockRepo.Object, domainService);
+        var jobService = new JobManagementService(mockRepo.Object);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -60,8 +58,7 @@ public class ConsoleIntegrationTests
     public void FullFlow_DeleteJob_ShouldCallRepositoryDelete()
     {
         var mockRepo = new Mock<IJobRepository>();
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(mockRepo.Object, domainService);
+        var jobService = new JobManagementService(mockRepo.Object);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -90,8 +87,7 @@ public class ConsoleIntegrationTests
         var existingJob = new BackupJob(1, "OldName", "/old/src", "/old/dst", BackupType.Full);
         mockRepo.Setup(r => r.GetById(1)).Returns(existingJob);
 
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(mockRepo.Object, domainService);
+        var jobService = new JobManagementService(mockRepo.Object);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
