@@ -1,4 +1,5 @@
 using System.Globalization;
+using GUI.Helpers;
 
 namespace GUI.Converters;
 
@@ -32,7 +33,9 @@ public class StringNotEmptyConverter : IValueConverter
 public class BoolToSaveTextConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true ? "Update Job" : "Create Job";
+        => value is true
+            ? ServiceLocator.LocalizationService.UpdateButton
+            : ServiceLocator.LocalizationService.CreateButton;
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
@@ -80,7 +83,9 @@ public class BoolToColorConverter : IValueConverter
 public class BoolToResultTextConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true ? "Success" : "Failed";
+        => value is true
+            ? ServiceLocator.LocalizationService.Success
+            : ServiceLocator.LocalizationService.Failed;
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();

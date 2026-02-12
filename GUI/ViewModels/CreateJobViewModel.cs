@@ -64,7 +64,9 @@ public class CreateJobViewModel : ObservableObject
         set => SetProperty(ref _isEditMode, value);
     }
 
-    public string FormTitle => IsEditMode ? "Edit Backup Job" : "Create Backup Job";
+    public string FormTitle => IsEditMode
+        ? ServiceLocator.LocalizationService.EditJobTitle
+        : ServiceLocator.LocalizationService.CreateJobTitle;
 
     // Expose BackupType values for the Picker
     public List<BackupType> BackupTypes { get; } = new()

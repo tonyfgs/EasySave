@@ -14,7 +14,7 @@
 
             <!-- Job Name -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.ExecuteTitle}"
+                <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.JobName}"
                        FontSize="14" FontAttributes="Bold"/>
                 <Entry Text="{Binding Name}"
                        Placeholder="e.g. Daily Backup"
@@ -23,13 +23,14 @@
 
             <!-- Source Path -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Source Path" FontSize="14" FontAttributes="Bold"/>
+                <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.SourcePath}"
+                       FontSize="14" FontAttributes="Bold"/>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <Entry Grid.Column="0"
                            Text="{Binding SourcePath}"
                            Placeholder="C:\Users\Documents"/>
                     <Button Grid.Column="1"
-                            Text="Browse"
+                            Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Browse}"
                             Command="{Binding BrowseSourceCommand}"
                             VerticalOptions="Center"/>
                 </Grid>
@@ -37,13 +38,14 @@
 
             <!-- Target Path -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Target Path" FontSize="14" FontAttributes="Bold"/>
+                <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.TargetPath}"
+                       FontSize="14" FontAttributes="Bold"/>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <Entry Grid.Column="0"
                            Text="{Binding TargetPath}"
                            Placeholder="D:\Backups"/>
                     <Button Grid.Column="1"
-                            Text="Browse"
+                            Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Browse}"
                             Command="{Binding BrowseTargetCommand}"
                             VerticalOptions="Center"/>
                 </Grid>
@@ -51,7 +53,8 @@
 
             <!-- Backup Type -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Backup Type" FontSize="14" FontAttributes="Bold"/>
+                <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.BackupType}"
+                       FontSize="14" FontAttributes="Bold"/>
                 <Picker ItemsSource="{Binding BackupTypes}"
                         SelectedItem="{Binding SelectedType}"/>
             </VerticalStackLayout>
@@ -59,11 +62,11 @@
             <!-- Action Buttons -->
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,10,0,0">
                 <Button Grid.Column="0"
-                        Text="Cancel"
+                        Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Cancel}"
                         Command="{Binding CancelCommand}"
                         BackgroundColor="#E0E0E0" TextColor="Black"/>
                 <Button Grid.Column="1"
-                        Text="{Binding IsEditMode, Converter={StaticResource BoolToSaveTextConverter}}"
+                        Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.CreateButton}"
                         Command="{Binding SaveCommand}"
                         BackgroundColor="#1976D2" TextColor="White"/>
             </Grid>

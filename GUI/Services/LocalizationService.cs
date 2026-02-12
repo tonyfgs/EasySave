@@ -59,6 +59,8 @@ public class LocalizationService : INotifyPropertyChanged
     public string Success => GetString("common.success");
     public string Failed => GetString("common.failed");
     public string Error => GetString("common.error");
+    public string Browse => GetString("common.browse");
+    public string Refresh => GetString("common.refresh");
 
     public void ChangeLanguage()
     {
@@ -115,6 +117,7 @@ public class LocalizationService : INotifyPropertyChanged
             ["execute.all"] = new() { [Language.EN] = "Execute All", [Language.FR] = "Tout Exécuter" },
             ["execute.executing"] = new() { [Language.EN] = "Executing backups...", [Language.FR] = "Exécution des sauvegardes..." },
             ["execute.no_jobs"] = new() { [Language.EN] = "No jobs available to execute.", [Language.FR] = "Aucune tâche disponible à exécuter." },
+            
 
             // Common
             ["common.edit"] = new() { [Language.EN] = "Edit", [Language.FR] = "Modifier" },
@@ -122,7 +125,9 @@ public class LocalizationService : INotifyPropertyChanged
             ["common.cancel"] = new() { [Language.EN] = "Cancel", [Language.FR] = "Annuler" },
             ["common.success"] = new() { [Language.EN] = "Success", [Language.FR] = "Succès" },
             ["common.failed"] = new() { [Language.EN] = "Failed", [Language.FR] = "Échoué" },
-            ["common.error"] = new() { [Language.EN] = "Error", [Language.FR] = "Erreur" }
+            ["common.error"] = new() { [Language.EN] = "Error", [Language.FR] = "Erreur" },
+            ["common.browse"] = new() { [Language.EN] = "Browse", [Language.FR] = "Parcourir" },
+            ["common.refresh"] = new() { [Language.EN] = "Refresh", [Language.FR] = "Actualiser" }
         };
     }
 

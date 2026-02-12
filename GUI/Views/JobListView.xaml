@@ -9,14 +9,16 @@
     <Grid RowDefinitions="Auto,*,Auto" Padding="20">
 
         <!-- Header -->
-        <HorizontalStackLayout Grid.Row="0" Spacing="10" Margin="0,0,0,10">
-            <Label Text="Backup Jobs"
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <Label Grid.Column="0"
+                   Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.JobListTitle}"
                    FontSize="24" FontAttributes="Bold"
                    VerticalOptions="Center"/>
-            <Button Text="⟳ Refresh"
+            <Button Grid.Column="1"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Refresh, StringFormat='⟳ {0}'}"
                     Command="{Binding RefreshCommand}"
                     VerticalOptions="Center"/>
-        </HorizontalStackLayout>
+        </Grid>
 
         <!-- Job List -->
         <Border Grid.Row="1" Stroke="#E0E0E0" StrokeThickness="1"
@@ -25,7 +27,7 @@
                             SelectedItem="{Binding SelectedJob, Mode=TwoWay}"
                             SelectionMode="Single">
                 <CollectionView.EmptyView>
-                    <Label Text="No backup jobs configured. Create one to get started."
+                    <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.NoJobs}"
                            HorizontalOptions="Center" VerticalOptions="Center"
                            FontSize="16" TextColor="Gray" Margin="20"/>
                 </CollectionView.EmptyView>
@@ -94,11 +96,11 @@
                    Text="{Binding StatusMessage}"
                    VerticalOptions="Center" TextColor="Gray"/>
             <Button Grid.Column="1"
-                    Text="✏️ Edit"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Edit, StringFormat='✏️ {0}'}"
                     Command="{Binding EditJobCommand}"
                     Margin="0,0,10,0"/>
             <Button Grid.Column="2"
-                    Text="🗑️ Delete"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Delete, StringFormat='🗑️ {0}'}"
                     Command="{Binding DeleteJobCommand}"
                     BackgroundColor="#EF5350" TextColor="White"/>
         </Grid>
