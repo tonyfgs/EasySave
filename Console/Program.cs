@@ -54,7 +54,7 @@ public class Program
             encryptionService, encryptionConfig, businessSoftwareDetector,
             businessSoftwareConfig);
         var strategyFactory = new BackupStrategyFactory();
-        var jobService = new JobManagementService(jobRepository, domainService);
+        var jobService = new JobManagementService(jobRepository);
         var executionService = new BackupExecutionService(
             jobRepository, backupExecutor, strategyFactory,
             businessSoftwareDetector, businessSoftwareConfig, eventBus);

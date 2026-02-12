@@ -14,9 +14,7 @@ public class CreateJobCommandTests
     public CreateJobCommandTests()
     {
         _mockRepo = new Mock<IJobRepository>();
-        _mockRepo.Setup(r => r.Count()).Returns(0);
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         _command = new CreateJobCommand(jobService, TextWriter.Null);
     }
 
@@ -38,17 +36,6 @@ public class CreateJobCommandTests
         _command.Execute(args);
 
         _mockRepo.Verify(r => r.Save(It.Is<BackupJob>(j => j.Name == "MyBackup")), Times.Once);
-    }
-
-    [Fact]
-    public void Execute_AtJobLimit_ShouldReturnFailure()
-    {
-        _mockRepo.Setup(r => r.Count()).Returns(5);
-        var args = new List<string> { "MyBackup", "/src", "/dst", "Full" };
-
-        var result = _command.Execute(args);
-
-        Assert.False(result.IsSuccess());
     }
 
     [Fact]

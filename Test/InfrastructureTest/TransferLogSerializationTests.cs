@@ -89,7 +89,7 @@ public class TransferLogSerializationTests
             DestPath = "\\\\PC\\E$\\Backup\\Photos\\chat.jpg",
             FileSize = 2048576,
             TransferTimeMs = 150,
-            EncryptionTimeMs = 75
+            EncryptionTimeMs = 250
         };
 
         var json = JsonSerializer.Serialize(original);
@@ -110,5 +110,67 @@ public class TransferLogSerializationTests
     {
         var log = new TransferLog { BackupName = "Test" };
         Assert.Equal(0, log.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void TransferLog_V1Log_DeserializesWithDefaultEncryptionTimeMs()
+    {
+        var json = """
+        {
+            "Timestamp": "2024-01-26T14:30:00",
+            "BackupName": "OldBackup",
+            "SourcePath": "\\\\PC\\src",
+            "DestPath": "\\\\PC\\dst",
+            "FileSize": 1024,
+            "TransferTimeMs": 50
+        }
+        """;
+
+        var log = JsonSerializer.Deserialize<TransferLog>(json);
+
+        Assert.NotNull(log);
+        Assert.Equal(0, log.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void TransferLog_EncryptionTimeMs_RoundTrip_PreservesNonZeroValue()
+    {
+        var original = new TransferLog
+        {
+            Timestamp = new DateTime(2024, 6, 15, 10, 0, 0),
+            BackupName = "Encrypted Backup",
+            SourcePath = "\\\\PC\\D$\\secret.docx",
+            DestPath = "\\\\PC\\E$\\Backup\\secret.docx",
+            FileSize = 4096,
+            TransferTimeMs = 200,
+            EncryptionTimeMs = 500
+        };
+
+        var json = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<TransferLog>(json);
+
+        Assert.NotNull(restored);
+        Assert.Equal(500, restored.EncryptionTimeMs);
+    }
+
+    [Fact]
+    public void TransferLog_NegativeEncryptionTimeMs_RoundTrip_PreservesErrorCode()
+    {
+        var original = new TransferLog
+        {
+            Timestamp = new DateTime(2024, 6, 15, 10, 0, 0),
+            BackupName = "Failed Encryption",
+            SourcePath = "\\\\PC\\D$\\secret.docx",
+            DestPath = "\\\\PC\\E$\\Backup\\secret.docx",
+            FileSize = 4096,
+            TransferTimeMs = 200,
+            EncryptionTimeMs = -1
+        };
+
+        var json = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<TransferLog>(json);
+
+        Assert.NotNull(restored);
+        Assert.Equal(-1, restored.EncryptionTimeMs);
     }
 }
