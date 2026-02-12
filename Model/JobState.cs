@@ -8,5 +8,6 @@ public enum JobState
     Inactive,
     Active,
     End,
-    Error
+    Error,
+    Blocked
 }

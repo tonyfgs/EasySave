@@ -106,6 +106,13 @@ public class TransferLogSerializationTests
     }
 
     [Fact]
+    public void TransferLog_DefaultEncryptionTimeMs_ShouldBeZero()
+    {
+        var log = new TransferLog { BackupName = "Test" };
+        Assert.Equal(0, log.EncryptionTimeMs);
+    }
+
+    [Fact]
     public void TransferLog_V1Log_DeserializesWithDefaultEncryptionTimeMs()
     {
         var json = """

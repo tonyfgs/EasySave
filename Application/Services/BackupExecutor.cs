@@ -13,19 +13,31 @@ public class BackupExecutor
     private readonly IEventBus _eventBus;
     private readonly BackupDomainService _domainService;
     private readonly ProgressTracker _tracker;
+    private readonly IEncryptionService _encryptionService;
+    private readonly IEncryptionConfig _encryptionConfig;
+    private readonly IBusinessSoftwareDetector _businessSoftwareDetector;
+    private readonly IBusinessSoftwareConfig _businessSoftwareConfig;
 
     public BackupExecutor(
         IFileSystemGateway fileSystem,
         IPathAdapter pathAdapter,
         IEventBus eventBus,
         BackupDomainService domainService,
-        ProgressTracker tracker)
+        ProgressTracker tracker,
+        IEncryptionService encryptionService,
+        IEncryptionConfig encryptionConfig,
+        IBusinessSoftwareDetector businessSoftwareDetector,
+        IBusinessSoftwareConfig businessSoftwareConfig)
     {
         _fileSystem = fileSystem;
         _pathAdapter = pathAdapter;
         _eventBus = eventBus;
         _domainService = domainService;
         _tracker = tracker;
+        _encryptionService = encryptionService;
+        _encryptionConfig = encryptionConfig;
+        _businessSoftwareDetector = businessSoftwareDetector;
+        _businessSoftwareConfig = businessSoftwareConfig;
     }
 
     public BackupResult Execute(BackupJob job, IBackupStrategy strategy)
@@ -34,6 +46,7 @@ public class BackupExecutor
         var errors = new List<string>();
         int filesProcessed = 0;
         long bytesTransferred = 0;
+        bool blockedByBusinessSoftware = false;
 
         try
         {
@@ -65,6 +78,32 @@ public class BackupExecutor
                     filesProcessed++;
                     bytesTransferred += bytesCopied;
 
+                    long encryptionTimeMs = 0;
+                    var encryptedExtensions = _encryptionConfig.GetEncryptedExtensions();
+                    var fileExtension = Path.GetExtension(file.Path);
+                    if (encryptedExtensions.Any(ext =>
+                            ext.Equals(fileExtension, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        try
+                        {
+                            var cryptoResult = _encryptionService.EncryptFile(targetFilePath);
+                            if (cryptoResult.Success)
+                            {
+                                encryptionTimeMs = cryptoResult.DurationMs;
+                            }
+                            else
+                            {
+                                encryptionTimeMs = -((long)cryptoResult.ErrorCode + 1);
+                                errors.Add($"Encryption failed for {file.Path}: {cryptoResult.ErrorMessage}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            encryptionTimeMs = -((long)CryptoErrorCode.Unknown + 1);
+                            errors.Add($"Encryption failed for {file.Path}: {ex.Message}");
+                        }
+                    }
+
                     _tracker.FileProcessed(file);
 
                     var transferLog = new TransferLog
@@ -74,12 +113,34 @@ public class BackupExecutor
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
                         FileSize = file.Size,
-                        TransferTimeMs = transferStopwatch.ElapsedMilliseconds
+                        TransferTimeMs = transferStopwatch.ElapsedMilliseconds,
+                        EncryptionTimeMs = encryptionTimeMs
                     };
                     _eventBus.Publish(new TransferCompletedEvent(transferLog));
 
                     var snapshot = _tracker.BuildSnapshot(job.Name);
                     _eventBus.Publish(new StateChangedEvent(snapshot));
+
+                    // In-flight business software detection
+                    if (_businessSoftwareConfig.IsDetectionEnabled())
+                    {
+                        var businessStatus = _businessSoftwareDetector.GetStatus();
+                        if (businessStatus.IsBlocking())
+                        {
+                            var blockReason = $"Business software detected ({businessStatus})";
+                            errors.Add(blockReason);
+                            blockedByBusinessSoftware = true;
+
+                            _tracker.SetState(JobState.Blocked);
+                            _tracker.SetBlockReason(blockReason);
+                            _tracker.ClearCurrentFile();
+                            var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
+                            _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
+                            _eventBus.Publish(new BusinessSoftwareDetectedEvent(
+                                job.Name, businessStatus, DateTime.Now));
+                            break;
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -92,7 +153,8 @@ public class BackupExecutor
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
                         FileSize = file.Size,
-                        TransferTimeMs = -1
+                        TransferTimeMs = -1,
+                        EncryptionTimeMs = 0
                     };
                     _eventBus.Publish(new TransferCompletedEvent(errorLog));
 
@@ -102,14 +164,17 @@ public class BackupExecutor
                 }
             }
 
-            _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
-            _tracker.ClearCurrentFile();
-            var endSnapshot = _tracker.BuildSnapshot(job.Name);
-            _eventBus.Publish(new StateChangedEvent(endSnapshot));
-
-            if (strategy is FullBackupStrategy)
+            if (!blockedByBusinessSoftware)
             {
-                job.MarkFullBackupCompleted(DateTime.Now);
+                _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
+                _tracker.ClearCurrentFile();
+                var endSnapshot = _tracker.BuildSnapshot(job.Name);
+                _eventBus.Publish(new StateChangedEvent(endSnapshot));
+
+                if (strategy is FullBackupStrategy)
+                {
+                    job.MarkFullBackupCompleted(DateTime.Now);
+                }
             }
         }
         catch (Exception ex)

@@ -11,6 +11,7 @@ public class ProgressTracker
     private long _processedBytes;
     private string _currentSourceFile = string.Empty;
     private string _currentDestFile = string.Empty;
+    private string? _blockReason;
     private JobState _state = JobState.Inactive;
 
     public void Initialize(List<FileDescriptor> files)
@@ -19,6 +20,9 @@ public class ProgressTracker
         _totalBytes = files.Sum(f => f.Size);
         _processedFiles = 0;
         _processedBytes = 0;
+        _currentSourceFile = string.Empty;
+        _currentDestFile = string.Empty;
+        _blockReason = null;
         _state = JobState.Active;
     }
 
@@ -45,6 +49,11 @@ public class ProgressTracker
         _state = state;
     }
 
+    public void SetBlockReason(string? reason)
+    {
+        _blockReason = reason;
+    }
+
     public StateSnapshot BuildSnapshot(string jobName)
     {
         return new StateSnapshot
@@ -58,7 +67,8 @@ public class ProgressTracker
             FilesRemaining = _totalFiles - _processedFiles,
             SizeRemaining = _totalBytes - _processedBytes,
             CurrentSourceFile = _currentSourceFile,
-            CurrentDestFile = _currentDestFile
+            CurrentDestFile = _currentDestFile,
+            BlockReason = _blockReason
         };
     }
 
@@ -76,6 +86,7 @@ public class ProgressTracker
         _processedBytes = 0;
         _currentSourceFile = string.Empty;
         _currentDestFile = string.Empty;
+        _blockReason = null;
         _state = JobState.Inactive;
     }
 }

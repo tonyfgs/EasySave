@@ -51,6 +51,7 @@ package "Domain" #FEFECE {
     ACTIVE
     END
     ERROR
+    BLOCKED
   }
 
   class BackupJob <<AggregateRoot>> {
@@ -146,6 +147,7 @@ package "Application" #E8F5E9 {
     + RemainingFilesSize: long
     + CurrentSourceFilePath: string
     + CurrentTargetFilePath: string
+    + BlockReason: string?
   }
 
   class TransferLog <<DTO>> {
@@ -155,6 +157,7 @@ package "Application" #E8F5E9 {
     + TargetFilePath: string
     + FileSize: long
     + TransferTimeMs: long
+    + EncryptionTimeMs: long
   }
 
   class JobExecutionResult <<DTO>> {
@@ -233,6 +236,61 @@ package "Application" #E8F5E9 {
     + SetLanguage(lang: Language): void
   }
 
+  interface IEncryptionService <<port>> {
+    + EncryptFile(filePath: string): CryptoResult
+    + DecryptFile(filePath: string): CryptoResult
+  }
+
+  interface IEncryptionConfig <<port>> {
+    + GetEncryptedExtensions(): IReadOnlyList<string>
+    + SetEncryptedExtensions(extensions: IReadOnlyList<string>): void
+    + GetEncryptionKey(): string
+    + SetEncryptionKey(key: string): void
+  }
+
+  interface IBusinessSoftwareDetector <<port>> {
+    + GetStatus(): BusinessSoftwareStatus
+  }
+
+  interface IBusinessSoftwareConfig <<port>> {
+    + GetBusinessSoftwareName(): string
+    + SetBusinessSoftwareName(name: string): void
+    + IsDetectionEnabled(): bool
+    + SetDetectionEnabled(enabled: bool): void
+  }
+
+  class CryptoResult {
+    + Success: bool
+    + DurationMs: long
+    + ErrorCode: CryptoErrorCode
+    + ErrorMessage: string?
+  }
+
+  enum CryptoErrorCode <<enumeration>> {
+    None
+    FileNotFound
+    InvalidArguments
+    IoError
+    AuthTagInvalid
+    InvalidKey
+    Timeout
+    Unknown
+  }
+
+  enum BusinessSoftwareStatus <<enumeration>> {
+    Disabled
+    NotRunning
+    Running
+    Unknown
+    Error
+  }
+
+  class BusinessSoftwareDetectedEvent {
+    + JobName: string
+    + Status: BusinessSoftwareStatus
+    + Timestamp: DateTime
+  }
+
   ' --- Application Services ---
 
   class ProgressTracker {
@@ -240,11 +298,16 @@ package "Application" #E8F5E9 {
     - processedFiles: int
     - totalBytes: long
     - processedBytes: long
+    - blockReason: string?
     + Initialize(files: List<FileDescriptor>): void
     + FileProcessed(file: FileDescriptor): void
     + BuildSnapshot(jobName: string): StateSnapshot
     + GetProgress(): int
     + Reset(): void
+    + SetState(state: JobState): void
+    + SetBlockReason(reason: string?): void
+    + SetCurrentFile(source: string, target: string): void
+    + ClearCurrentFile(): void
   }
 
   class BackupStrategyFactory <<factory>> {
@@ -257,6 +320,10 @@ package "Application" #E8F5E9 {
     - eventBus: IEventBus
     - domainService: BackupDomainService
     - tracker: ProgressTracker
+    - encryptionService: IEncryptionService
+    - encryptionConfig: IEncryptionConfig
+    - businessSoftwareDetector: IBusinessSoftwareDetector
+    - businessSoftwareConfig: IBusinessSoftwareConfig
     + Execute(job: BackupJob,\n\t strategy: IBackupStrategy): BackupResult
   }
 
@@ -273,6 +340,9 @@ package "Application" #E8F5E9 {
     - repository: IJobRepository
     - executor: BackupExecutor
     - strategyFactory: BackupStrategyFactory
+    - detector: IBusinessSoftwareDetector
+    - detectorConfig: IBusinessSoftwareConfig
+    - eventBus: IEventBus
     + ExecuteJobs(jobIds: List<int>): List<JobExecutionResult>
     + ExecuteAllJobs(): List<JobExecutionResult>
   }
@@ -351,11 +421,23 @@ package "Infrastructure" #E3F2FD {
     - logFormat: LogFormat
     - language: Language
     - logDirectory: string
+    - encryptedExtensions: List<string>
+    - encryptionKey: string
+    - businessSoftwareName: string
+    - detectionEnabled: bool
     + GetLogFormat(): LogFormat
     + SetLogFormat(format: LogFormat): void
     + GetLanguage(): Language
     + SetLanguage(lang: Language): void
     + GetLogDirectory(): string
+    + GetEncryptedExtensions(): IReadOnlyList<string>
+    + SetEncryptedExtensions(extensions: IReadOnlyList<string>): void
+    + GetEncryptionKey(): string
+    + SetEncryptionKey(key: string): void
+    + GetBusinessSoftwareName(): string
+    + SetBusinessSoftwareName(name: string): void
+    + IsDetectionEnabled(): bool
+    + SetDetectionEnabled(enabled: bool): void
     + Load(): void
     + Save(): void
   }
@@ -370,6 +452,15 @@ package "Infrastructure" #E3F2FD {
     - handlers: Dictionary<Type, List<object>>
     + Publish<T>(event: T): void
     + Subscribe<T>(handler: IEventHandler<T>): void
+  }
+
+  class DisabledEncryptionService {
+    + EncryptFile(filePath: string): CryptoResult
+    + DecryptFile(filePath: string): CryptoResult
+  }
+
+  class DisabledBusinessSoftwareDetector {
+    + GetStatus(): BusinessSoftwareStatus
   }
 }
 
@@ -619,6 +710,12 @@ BackupExecutor ..> FileDescriptor : processes
 BackupExecutor ..> TransferCompletedEvent : publishes
 BackupExecutor ..> StateChangedEvent : publishes
 BackupExecutor ..> IBackupStrategy : receives
+BackupExecutor "1" --> "1" IEncryptionService : encrypts via
+BackupExecutor "1" --> "1" IEncryptionConfig : reads extensions from
+BackupExecutor "1" --> "1" IBusinessSoftwareDetector : checks in-flight via
+BackupExecutor "1" --> "1" IBusinessSoftwareConfig : reads config via
+BackupExecutor ..> BusinessSoftwareDetectedEvent : publishes
+BackupExecutor ..> CryptoResult : uses
 
 ' --- Application: Event handlers (typed, no runtime cast) ---
 "IEventHandler<TransferCompletedEvent>" <|.. TransferCompletedHandler
@@ -635,7 +732,11 @@ JobManagementService "1" --> "1" BackupDomainService : validates with
 BackupExecutionService "1" --> "1" IJobRepository : reads from
 BackupExecutionService "1" --> "1" BackupExecutor : delegates to
 BackupExecutionService "1" --> "1" BackupStrategyFactory : resolves strategy via
+BackupExecutionService "1" --> "1" IBusinessSoftwareDetector : pre-flight check via
+BackupExecutionService "1" --> "1" IBusinessSoftwareConfig : reads config via
+BackupExecutionService "1" --> "1" IEventBus : publishes events via
 BackupExecutionService ..> JobExecutionResult : returns
+BackupExecutionService ..> BusinessSoftwareDetectedEvent : publishes
 
 ProgressTracker ..> FileDescriptor : tracks
 ProgressTracker ..> StateSnapshot : builds
@@ -656,6 +757,10 @@ ITransferLogger <|.. XmlTransferLogger
 IFileSystemGateway <|.. LocalFileSystemGateway
 IPathAdapter <|.. UNCPathAdapter
 ILanguageConfig <|.. AppConfiguration
+IEncryptionConfig <|.. AppConfiguration
+IBusinessSoftwareConfig <|.. AppConfiguration
+IEncryptionService <|.. DisabledEncryptionService
+IBusinessSoftwareDetector <|.. DisabledBusinessSoftwareDetector
 
 JsonTransferLogger "1" --> "1" IEasyLogger : delegates to
 XmlTransferLogger "1" --> "1" IEasyLogger : delegates to
@@ -809,9 +914,9 @@ end note
 
 note bottom of TransferLog
   Application-layer DTO for log entries.
-  No EncryptionTimeMs in v1.0 (YAGNI).
-  Will be extended in v2.0 when CryptoSoft
-  integration is added.
+  EncryptionTimeMs added in v2.0:
+  0 = not encrypted, >0 = success (ms),
+  -(ErrorCode+1) = encryption failed.
 end note
 
 note bottom of IEventBus
