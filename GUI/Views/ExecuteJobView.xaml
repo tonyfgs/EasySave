@@ -47,9 +47,32 @@
 
         <!-- Progress section -->
         <VerticalStackLayout Grid.Row="2" Spacing="8" Margin="0,10,0,10">
+            <!-- Progress Bar -->
             <ProgressBar Progress="{Binding OverallProgress, Converter={StaticResource IntToDoubleConverter}}"
                          ProgressColor="#1976D2"
                          IsVisible="{Binding IsExecuting}"/>
+
+            <!-- Progress Details -->
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding IsExecuting}">
+                <Label Grid.Column="0"
+                       Text="{Binding OverallProgress, StringFormat='{0}%'}"
+                       FontAttributes="Bold" FontSize="14" TextColor="#1976D2"/>
+                <Label Grid.Column="1" FontSize="12" TextColor="Gray">
+                    <Label.Text>
+                        <MultiBinding StringFormat="{}{0}/{1} files">
+                            <Binding Path="FilesProcessed"/>
+                            <Binding Path="TotalFiles"/>
+                        </MultiBinding>
+                    </Label.Text>
+                </Label>
+            </Grid>
+
+            <!-- Current File -->
+            <Label Text="{Binding CurrentFile, StringFormat='Processing: {0}'}"
+                   FontSize="12" TextColor="Gray"
+                   IsVisible="{Binding CurrentFile, Converter={StaticResource StringNotEmptyConverter}}"/>
+
+            <!-- Status Message -->
             <Label Text="{Binding StatusMessage}"
                    TextColor="Gray" FontSize="14"/>
 

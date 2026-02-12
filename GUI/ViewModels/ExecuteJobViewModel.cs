@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Application.DTOs;
+using Application.Events;
 using Application.Services;
 using GUI.Helpers;
 using Model;
@@ -8,13 +9,17 @@ using Model;
 namespace GUI.ViewModels;
 
 
-public class ExecuteJobViewModel : ObservableObject
+public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedEvent>
 {
     private readonly BackupExecutionService _executionService;
     private readonly JobManagementService _jobManagementService;
+    private readonly IEventBus _eventBus;
     private bool _isExecuting;
     private string _statusMessage = string.Empty;
     private int _overallProgress;
+    private string _currentFile = string.Empty;
+    private int _filesProcessed;
+    private int _totalFiles;
 
     public ObservableCollection<BackupJob> AvailableJobs { get; } = new();
     public ObservableCollection<BackupJob> SelectedJobs { get; } = new();
@@ -45,6 +50,24 @@ public class ExecuteJobViewModel : ObservableObject
         set => SetProperty(ref _overallProgress, value);
     }
 
+    public string CurrentFile
+    {
+        get => _currentFile;
+        set => SetProperty(ref _currentFile, value);
+    }
+
+    public int FilesProcessed
+    {
+        get => _filesProcessed;
+        set => SetProperty(ref _filesProcessed, value);
+    }
+
+    public int TotalFiles
+    {
+        get => _totalFiles;
+        set => SetProperty(ref _totalFiles, value);
+    }
+
     public ICommand ExecuteSelectedCommand { get; }
     public ICommand ExecuteAllCommand { get; }
     public ICommand ToggleJobSelectionCommand { get; }
@@ -53,13 +76,17 @@ public class ExecuteJobViewModel : ObservableObject
     {
         _executionService = ServiceLocator.BackupExecutionService;
         _jobManagementService = ServiceLocator.JobManagementService;
+        _eventBus = ServiceLocator.EventBus;
+
+        // Subscribe to real-time progress events
+        _eventBus.Subscribe(this);
 
         ExecuteSelectedCommand = new RelayCommand(
-            ExecuteSelected,
+            async () => await ExecuteSelectedAsync(),
             () => !IsExecuting && SelectedJobs.Count > 0);
 
         ExecuteAllCommand = new RelayCommand(
-            ExecuteAll,
+            async () => await ExecuteAllAsync(),
             () => !IsExecuting && AvailableJobs.Count > 0);
 
         ToggleJobSelectionCommand = new RelayCommand<BackupJob>(ToggleSelection);
@@ -93,49 +120,56 @@ public class ExecuteJobViewModel : ObservableObject
         ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
     }
 
-    private void ExecuteSelected()
+    private async Task ExecuteSelectedAsync()
     {
         IsExecuting = true;
         Results.Clear();
+        CurrentFile = string.Empty;
+        FilesProcessed = 0;
+        TotalFiles = 0;
+        OverallProgress = 0;
         StatusMessage = "Executing backups...";
 
         try
         {
             var jobIds = SelectedJobs.Select(j => j.Id).ToList();
-            var results = _executionService.ExecuteJobs(jobIds);
 
-            foreach (var r in results)
+            // Run on background thread
+            var results = await Task.Run(() => _executionService.ExecuteJobs(jobIds));
+
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                Results.Add(r);
-
-                if (!r.Result.Success)
+                foreach (var r in results)
                 {
-                    var errors = string.Join(", ", r.Result.Errors);
-                    System.Diagnostics.Debug.WriteLine($"Job {r.JobId} FAILED: {errors}");
+                    Results.Add(r);
                 }
-            }
 
-            int succeeded = results.Count(r => r.Result.Success);
-            int failed = results.Count - succeeded;
+                int succeeded = results.Count(r => r.Result.Success);
+                int failed = results.Count - succeeded;
 
-            if (failed > 0)
-            {
-                var failedJobs = results.Where(r => !r.Result.Success).ToList();
-                var errorDetails = string.Join("; ", failedJobs.Select(j =>
-                    $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
-                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errorDetails}";
-            }
-            else
-            {
-                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed.";
-            }
+                if (failed > 0)
+                {
+                    var failedJobs = results.Where(r => !r.Result.Success).ToList();
+                    var errorDetails = string.Join("; ", failedJobs.Select(j =>
+                        $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
+                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errorDetails}";
+                }
+                else
+                {
+                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed.";
+                }
 
-            OverallProgress = 100;
+                OverallProgress = 100;
+                CurrentFile = string.Empty;
+            });
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Execution error: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Exception: {ex}");
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                StatusMessage = $"Execution error: {ex.Message}";
+            });
         }
         finally
         {
@@ -143,55 +177,77 @@ public class ExecuteJobViewModel : ObservableObject
         }
     }
 
-    private void ExecuteAll()
+    private async Task ExecuteAllAsync()
     {
         IsExecuting = true;
         Results.Clear();
+        CurrentFile = string.Empty;
+        FilesProcessed = 0;
+        TotalFiles = 0;
+        OverallProgress = 0;
         StatusMessage = "Executing backups...";
 
         try
         {
-            // EXACTLY like console
-            var results = _executionService.ExecuteAllJobs();
+            // Run on background thread
+            var results = await Task.Run(() => _executionService.ExecuteAllJobs());
 
-            foreach (var r in results)
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                Results.Add(r);
-
-                // Log detailed error info if failed
-                if (!r.Result.Success)
+                foreach (var r in results)
                 {
-                    var errors = string.Join(", ", r.Result.Errors);
-                    System.Diagnostics.Debug.WriteLine($"Job {r.JobId} FAILED: {errors}");
+                    Results.Add(r);
                 }
-            }
 
-            int succeeded = results.Count(r => r.Result.Success);
-            int failed = results.Count - succeeded;
+                int succeeded = results.Count(r => r.Result.Success);
+                int failed = results.Count - succeeded;
 
-            // Show detailed error message if any failed
-            if (failed > 0)
-            {
-                var failedJobs = results.Where(r => !r.Result.Success).ToList();
-                var errorDetails = string.Join("; ", failedJobs.Select(j =>
-                    $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
-                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errorDetails}";
-            }
-            else
-            {
-                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed.";
-            }
+                if (failed > 0)
+                {
+                    var failedJobs = results.Where(r => !r.Result.Success).ToList();
+                    var errorDetails = string.Join("; ", failedJobs.Select(j =>
+                        $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
+                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errorDetails}";
+                }
+                else
+                {
+                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed.";
+                }
 
-            OverallProgress = 100;
+                OverallProgress = 100;
+                CurrentFile = string.Empty;
+            });
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Execution error: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"Exception: {ex}");
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                StatusMessage = $"Execution error: {ex.Message}";
+            });
         }
         finally
         {
             IsExecuting = false;
         }
+    }
+
+    // Handle real-time progress updates from StateChangedEvent
+    public void Handle(StateChangedEvent @event)
+    {
+        var snapshot = @event.Snapshot;
+
+        // Update UI on main thread
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            OverallProgress = snapshot.Progress;
+            FilesProcessed = snapshot.TotalFiles - snapshot.FilesRemaining;
+            TotalFiles = snapshot.TotalFiles;
+
+            if (!string.IsNullOrEmpty(snapshot.CurrentSourceFile))
+            {
+                CurrentFile = Path.GetFileName(snapshot.CurrentSourceFile);
+            }
+        });
     }
 }

@@ -22,6 +22,7 @@ public static class ServiceLocator
     public static LocalizationService LocalizationService { get; private set; } = null!;
 
     // Infrastructure
+    public static IEventBus EventBus { get; private set; } = null!;
     public static IStateManager StateManager { get; private set; } = null!;
     public static AppConfiguration AppConfiguration { get; private set; } = null!;
 
@@ -48,6 +49,7 @@ public static class ServiceLocator
         var transferLogger = transferLoggerFactory.Create();
 
         var eventBus = new InProcessEventBus();
+        EventBus = eventBus;
         var stateManager = new JsonStateManager(statePath);
         StateManager = stateManager;
 
