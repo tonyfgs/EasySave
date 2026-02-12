@@ -2,6 +2,7 @@ using Application.Events;
 using Application.Handlers;
 using Application.Ports;
 using Application.Services;
+using GUI.Services;
 using Infrastructure;
 using Logger.Service;
 using Model;
@@ -16,6 +17,9 @@ public static class ServiceLocator
     public static JobManagementService JobManagementService { get; private set; } = null!;
     public static BackupExecutionService BackupExecutionService { get; private set; } = null!;
     public static LanguageApplicationService LanguageApplicationService { get; private set; } = null!;
+
+    // GUI Services
+    public static LocalizationService LocalizationService { get; private set; } = null!;
 
     // Infrastructure
     public static IStateManager StateManager { get; private set; } = null!;
@@ -66,6 +70,7 @@ public static class ServiceLocator
         BackupExecutionService = new BackupExecutionService(
             jobRepository, backupExecutor, strategyFactory);
         LanguageApplicationService = new LanguageApplicationService(appConfig);
+        LocalizationService = new LocalizationService(LanguageApplicationService);
 
         _initialized = true;
     }

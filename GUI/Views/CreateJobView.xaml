@@ -14,7 +14,8 @@
 
             <!-- Job Name -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Job Name" FontSize="14" FontAttributes="Bold"/>
+                <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.ExecuteTitle}"
+                       FontSize="14" FontAttributes="Bold"/>
                 <Entry Text="{Binding Name}"
                        Placeholder="e.g. Daily Backup"
                        ClearButtonVisibility="WhileEditing"/>

@@ -16,27 +16,27 @@
             <VerticalStackLayout Spacing="5" Padding="15">
 
                 <!-- App Title -->
-                <Label Text="EasySave"
+                <Label Text="{Binding Localization.AppTitle}"
                        FontSize="22" FontAttributes="Bold"
                        TextColor="#1976D2"
                        Margin="0,10,0,20"/>
 
                 <!-- Nav Buttons -->
-                <Button Text="📋 Job List"
+                <Button Text="{Binding Localization.JobList}"
                         Command="{Binding ShowJobListCommand}"
                         BackgroundColor="Transparent"
                         TextColor="Black"
                         FontSize="15"
                         HorizontalOptions="Fill"/>
 
-                <Button Text="➕ Create Job"
+                <Button Text="{Binding Localization.CreateJob}"
                         Command="{Binding ShowCreateJobCommand}"
                         BackgroundColor="Transparent"
                         TextColor="Black"
                         FontSize="15"
                         HorizontalOptions="Fill"/>
 
-                <Button Text="▶️ Execute"
+                <Button Text="{Binding Localization.Execute}"
                         Command="{Binding ShowExecuteJobCommand}"
                         BackgroundColor="Transparent"
                         TextColor="Black"
@@ -47,7 +47,7 @@
                 <BoxView HeightRequest="1" Color="#E0E0E0" Margin="0,15"/>
 
                 <!-- Language Toggle -->
-                <Button Text="🌐 EN / FR"
+                <Button Text="{Binding Localization.LanguageToggle}"
                         Command="{Binding ToggleLanguageCommand}"
                         BackgroundColor="Transparent"
                         TextColor="Gray"

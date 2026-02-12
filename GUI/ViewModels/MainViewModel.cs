@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using Application.Services;
 using GUI.Helpers;
+using GUI.Services;
 using Shared;
 
 namespace GUI.ViewModels;
@@ -15,6 +16,7 @@ public class MainViewModel : ObservableObject
     public JobListViewModel JobListViewModel { get; }
     public CreateJobViewModel CreateJobViewModel { get; }
     public ExecuteJobViewModel ExecuteJobViewModel { get; }
+    public LocalizationService Localization { get; }
 
     public ObservableObject CurrentViewModel
     {
@@ -44,6 +46,7 @@ public class MainViewModel : ObservableObject
     {
         _languageService = ServiceLocator.LanguageApplicationService;
         _currentLanguage = _languageService.GetCurrentLanguage();
+        Localization = ServiceLocator.LocalizationService;
 
         // Create child ViewModels, passing navigation callbacks
         JobListViewModel = new JobListViewModel(
@@ -86,6 +89,7 @@ public class MainViewModel : ObservableObject
 
     private void ToggleLanguage()
     {
-        CurrentLanguage = CurrentLanguage == Language.EN ? Language.FR : Language.EN;
+        Localization.ChangeLanguage();
+        CurrentLanguage = _languageService.GetCurrentLanguage();
     }
 }

@@ -10,7 +10,8 @@
     <Grid RowDefinitions="Auto,*,Auto,Auto" Padding="20">
 
         <!-- Header -->
-        <Label Grid.Row="0" Text="Execute Backups"
+        <Label Grid.Row="0"
+               Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.ExecuteTitle}"
                FontSize="24" FontAttributes="Bold" Margin="0,0,0,10"/>
 
         <!-- Job selection list with checkboxes -->
@@ -78,11 +79,11 @@
         <!-- Action Buttons -->
         <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="10">
             <Button Grid.Column="0"
-                    Text="Execute Selected"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.ExecuteSelected}"
                     Command="{Binding ExecuteSelectedCommand}"
                     BackgroundColor="#1976D2" TextColor="White"/>
             <Button Grid.Column="1"
-                    Text="Execute All"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.ExecuteAll}"
                     Command="{Binding ExecuteAllCommand}"
                     BackgroundColor="#2E7D32" TextColor="White"/>
         </Grid>
