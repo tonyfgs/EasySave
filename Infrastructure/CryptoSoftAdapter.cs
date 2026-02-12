@@ -94,8 +94,8 @@ public class CryptoSoftAdapter : IEncryptionService
                 Success = false,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = errorCode,
-                ErrorMessage = string.IsNullOrWhiteSpace(errorOutput) 
-                    ? $"CryptoSoft {subcommand} échoué avec code {exitCode}" 
+                ErrorMessage = string.IsNullOrWhiteSpace(errorOutput)
+                    ? $"CryptoSoft {subcommand} échoué avec code {exitCode}"
                     : errorOutput.Trim()
             };
         }
