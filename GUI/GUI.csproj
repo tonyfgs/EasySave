@@ -1,8 +1,21 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net8.0-android;net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
-        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
+
+        <!-- Windows dev machine -->
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">
+            net8.0-windows10.0.19041.0
+        </TargetFrameworks>
+
+        <!-- Mac dev machine -->
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">
+            net8.0-maccatalyst;net8.0-ios
+        </TargetFrameworks>
+
+        <!-- Android uniquement si SDK installé -->
+        <TargetFrameworks Condition="'$(ANDROID_HOME)' != ''">
+            $(TargetFrameworks);net8.0-android
+        </TargetFrameworks>
 
         <OutputType>Exe</OutputType>
         <RootNamespace>GUI</RootNamespace>
@@ -10,6 +23,7 @@
         <SingleProject>true</SingleProject>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
 
         <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">maccatalyst-arm64</RuntimeIdentifier>
         <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">iossimulator-arm64</RuntimeIdentifier>
@@ -27,6 +41,10 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+        
+        <!-- Configuration pour Windows App SDK en mode non-packaged -->
+        <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+        <WindowsPackageType>None</WindowsPackageType>
     </PropertyGroup>
 
     <ItemGroup>
