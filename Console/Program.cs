@@ -1,5 +1,6 @@
 using Application.Events;
 using Application.Handlers;
+using Application.Ports;
 using Application.Services;
 using EasySave.Commands;
 using EasySave.UI;
@@ -42,13 +43,21 @@ public class Program
         var domainService = new BackupDomainService();
         var tracker = new ProgressTracker();
 
+        var encryptionService = new DisabledEncryptionService();
+        IEncryptionConfig encryptionConfig = appConfig;
+        var businessSoftwareDetector = new DisabledBusinessSoftwareDetector();
+        IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
+
         var languageService = new LanguageApplicationService(appConfig);
         var backupExecutor = new BackupExecutor(
-            fileSystem, pathAdapter, eventBus, domainService, tracker);
+            fileSystem, pathAdapter, eventBus, domainService, tracker,
+            encryptionService, encryptionConfig, businessSoftwareDetector,
+            businessSoftwareConfig);
         var strategyFactory = new BackupStrategyFactory();
         var jobService = new JobManagementService(jobRepository, domainService);
         var executionService = new BackupExecutionService(
-            jobRepository, backupExecutor, strategyFactory);
+            jobRepository, backupExecutor, strategyFactory,
+            businessSoftwareDetector, businessSoftwareConfig, eventBus);
 
         var languageManager = new LanguageManager(languageService);
         var inputParser = new InputParser();

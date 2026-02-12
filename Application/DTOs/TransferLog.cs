@@ -8,4 +8,5 @@ public record TransferLog
     public string DestPath { get; init; } = string.Empty;
     public long FileSize { get; init; }
     public long TransferTimeMs { get; init; }
+    public long EncryptionTimeMs { get; init; }
 }

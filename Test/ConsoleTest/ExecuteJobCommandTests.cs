@@ -19,18 +19,30 @@ public class ExecuteJobCommandTests
         var mockFileSystem = new Mock<IFileSystemGateway>();
         var mockPathAdapter = new Mock<IPathAdapter>();
         var mockEventBus = new Mock<IEventBus>();
+        var mockEncryptionService = new Mock<IEncryptionService>();
+        var mockEncryptionConfig = new Mock<IEncryptionConfig>();
+        var mockDetector = new Mock<IBusinessSoftwareDetector>();
+        var mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
         var domainService = new BackupDomainService();
         var tracker = new ProgressTracker();
 
         mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
         mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
             .Returns(new List<FileDescriptor>());
+        mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string>().AsReadOnly());
+        mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+        mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
 
         var executor = new BackupExecutor(
             mockFileSystem.Object, mockPathAdapter.Object,
-            mockEventBus.Object, domainService, tracker);
+            mockEventBus.Object, domainService, tracker,
+            mockEncryptionService.Object, mockEncryptionConfig.Object,
+            mockDetector.Object, mockDetectorConfig.Object);
 
-        var executionService = new BackupExecutionService(_mockRepo.Object, executor, strategyFactory);
+        var executionService = new BackupExecutionService(
+            _mockRepo.Object, executor, strategyFactory,
+            mockDetector.Object, mockDetectorConfig.Object, mockEventBus.Object);
         _command = new ExecuteJobCommand(executionService, TextWriter.Null);
     }
 
