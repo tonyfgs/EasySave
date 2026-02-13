@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: read
@@ -31,6 +31,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui
 
       - uses: actions/cache@v4
         with:
@@ -108,6 +111,9 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Install MAUI workload
+        run: dotnet workload install maui
+
       - uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -130,6 +136,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui
 
       - uses: actions/cache@v4
         with:
