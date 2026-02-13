@@ -8,7 +8,7 @@ public partial class ExecuteJobView : ContentView
     {
         InitializeComponent();
     }
-    
+
     private void OnJobCheckedChanged(object? sender, CheckedChangedEventArgs e)
     {
         if (sender is CheckBox checkBox && checkBox.BindingContext is BackupJob job)

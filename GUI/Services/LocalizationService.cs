@@ -29,7 +29,7 @@ public class LocalizationService : INotifyPropertyChanged
     public string Execute => GetString("nav.execute");
     public string Settings => GetString("nav.settings");
     public string LanguageToggle => GetString("nav.language");
-    
+
     // Navigation without icons (for sidebar)
     public string JobListNav => GetString("nav.job_list_text");
     public string CreateJobNav => GetString("nav.create_job_text");
@@ -111,7 +111,7 @@ public class LocalizationService : INotifyPropertyChanged
             ["nav.execute"] = new() { [Language.EN] = "▶️ Execute", [Language.FR] = "▶️ Exécuter" },
             ["nav.settings"] = new() { [Language.EN] = "⚙️ Settings", [Language.FR] = "⚙️ Paramètres" },
             ["nav.language"] = new() { [Language.EN] = "🌐 EN / FR", [Language.FR] = "🌐 EN / FR" },
-            
+
             // Navigation (text only - for sidebar with separate icons)
             ["nav.job_list_text"] = new() { [Language.EN] = "Job List", [Language.FR] = "Liste des Tâches" },
             ["nav.create_job_text"] = new() { [Language.EN] = "Create Job", [Language.FR] = "Créer une Tâche" },
