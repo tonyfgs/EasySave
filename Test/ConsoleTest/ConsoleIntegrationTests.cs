@@ -85,6 +85,33 @@ public class ConsoleIntegrationTests
     }
 
     [Fact]
+    public void FullFlow_CreateJob_NumericBackupType_ShouldShowError()
+    {
+        var mockRepo = new Mock<IJobRepository>();
+        var jobService = new JobManagementService(mockRepo.Object);
+
+        var mockConfig = new Mock<ILanguageConfig>();
+        mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
+        var languageManager = CreateLanguageManager(mockConfig);
+        var inputParser = new InputParser();
+
+        var output = new StringWriter();
+        var commands = new Dictionary<string, ICommand>
+        {
+            ["1"] = new CreateJobCommand(jobService, output),
+            ["7"] = new ExitCommand()
+        };
+
+        var input = new StringReader("1\nTestBackup\n/source\n/target\n1\n7\n");
+        var ui = new ConsoleUI(languageManager, inputParser, commands, input, output);
+        ui.Run();
+
+        var text = output.ToString();
+        Assert.Contains("Invalid backup type", text);
+        mockRepo.Verify(r => r.Save(It.IsAny<BackupJob>()), Times.Never);
+    }
+
+    [Fact]
     public void FullFlow_DeleteJob_ShouldCallRepositoryDelete()
     {
         var mockRepo = new Mock<IJobRepository>();

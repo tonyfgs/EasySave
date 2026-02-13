@@ -61,4 +61,32 @@ public class ModifyJobCommandTests
 
         Assert.False(result.IsSuccess());
     }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    public void Execute_NumericBackupType_ShouldReturnFailure(string numericType)
+    {
+        var args = new List<string> { "1", "NewJob", "/src", "/dst", numericType };
+
+        var result = _command.Execute(args);
+
+        Assert.False(result.IsSuccess());
+    }
+
+    [Theory]
+    [InlineData("differential")]
+    [InlineData("DIFFERENTIAL")]
+    [InlineData("Differential")]
+    public void Execute_CaseInsensitiveBackupType_ShouldReturnSuccess(string type)
+    {
+        var existingJob = new BackupJob(1, "OldJob", "/old/src", "/old/dst", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(existingJob);
+
+        var args = new List<string> { "1", "NewJob", "/new/src", "/new/dst", type };
+
+        var result = _command.Execute(args);
+
+        Assert.True(result.IsSuccess());
+    }
 }

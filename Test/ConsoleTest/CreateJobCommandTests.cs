@@ -57,4 +57,29 @@ public class CreateJobCommandTests
 
         Assert.False(result.IsSuccess());
     }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    public void Execute_NumericBackupType_ShouldReturnFailure(string numericType)
+    {
+        var args = new List<string> { "MyBackup", "/src", "/dst", numericType };
+
+        var result = _command.Execute(args);
+
+        Assert.False(result.IsSuccess());
+    }
+
+    [Theory]
+    [InlineData("full")]
+    [InlineData("FULL")]
+    [InlineData("Full")]
+    public void Execute_CaseInsensitiveBackupType_ShouldReturnSuccess(string type)
+    {
+        var args = new List<string> { "MyBackup", "/src", "/dst", type };
+
+        var result = _command.Execute(args);
+
+        Assert.True(result.IsSuccess());
+    }
 }
