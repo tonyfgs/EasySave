@@ -46,7 +46,7 @@ jobs:
         run: dotnet restore ${{ runner.os == 'Windows' && 'EasySave.sln' || 'EasySave.NoGUI.slnf' }} --locked-mode || dotnet restore ${{ runner.os == 'Windows' && 'EasySave.sln' || 'EasySave.NoGUI.slnf' }}
 
       - name: Build
-        run: dotnet build ${{ runner.os == 'Windows' && 'EasySave.sln' || 'EasySave.NoGUI.slnf' }} --no-restore --configuration Release /p:TreatWarningsAsErrors=true
+        run: dotnet build ${{ runner.os == 'Windows' && 'EasySave.sln' || 'EasySave.NoGUI.slnf' }} ${{ runner.os != 'Windows' && '--no-restore' || '' }} --configuration Release /p:TreatWarningsAsErrors=true
 
       - name: Test
         run: >
