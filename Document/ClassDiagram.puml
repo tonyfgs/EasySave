@@ -1,6 +1,6 @@
 @startuml
 scale 0.1
-title EasySave v2.0 Class Diagram
+title EasySave v3.0 Class Diagram (with MAUI MVVM)
 
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
@@ -461,123 +461,200 @@ package "Presentation (MAUI)" #FFE0B2 {
 
   ' --- MVVM Base Infrastructure ---
 
-  abstract class ViewModelBase <<ViewModel>> {
-    # PropertyChanged: event PropertyChangedEventHandler
-    # SetProperty<T>(field: ref T, value: T,\n\t [CallerMemberName] propertyName: string): bool
-    # OnPropertyChanged(propertyName: string): void
+  abstract class ObservableObject <<ViewModel>> {
+    + PropertyChanged: event PropertyChangedEventHandler
+    # OnPropertyChanged([CallerMemberName]\n\t propertyName: string?): void
+    # SetProperty<T>(field: ref T, value: T,\n\t [CallerMemberName] propertyName: string?): bool
   }
 
   class RelayCommand <<utility>> {
     - _execute: Action<object?>
-    - _canExecute: Func<object?, bool>?
-    + RelayCommand(execute: Action<object?>,\n\t canExecute: Func<object?, bool>?)
+    - _canExecute: Predicate<object?>?
+    + RelayCommand(execute: Action<object?>,\n\t canExecute: Predicate<object?>?)
+    + RelayCommand(execute: Action,\n\t canExecute: Func<bool>?)
     + Execute(parameter: object?): void
     + CanExecute(parameter: object?): bool
     + RaiseCanExecuteChanged(): void
   }
 
-  class AsyncRelayCommand <<utility>> {
-    - _execute: Func<object?, Task>
-    - _canExecute: Func<object?, bool>?
-    - _isRunning: bool
-    + AsyncRelayCommand(execute: Func<object?, Task>,\n\t canExecute: Func<object?, bool>?)
-    + ExecuteAsync(parameter: object?): Task
+  class "RelayCommand<T>" as RelayCommandT <<utility>> {
+    - _execute: Action<T?>
+    - _canExecute: Predicate<T?>?
+    + RelayCommand(execute: Action<T?>,\n\t canExecute: Predicate<T?>?)
+    + Execute(parameter: object?): void
     + CanExecute(parameter: object?): bool
-    + IsRunning: bool
+    + RaiseCanExecuteChanged(): void
+  }
+
+  ' --- Services ---
+
+  class LocalizationService <<service>> {
+    - _languageService: LanguageApplicationService
+    - _translations: Dictionary<string,\n\t Dictionary<Language, string>>
+    + PropertyChanged: event PropertyChangedEventHandler
+    + AppTitle: string
+    + JobList: string
+    + CreateJob: string
+    + Execute: string
+    + LanguageToggle: string
+    + JobListTitle: string
+    + NoJobs: string
+    + Edit: string
+    + Delete: string
+    + CreateJobTitle: string
+    + EditJobTitle: string
+    + JobName: string
+    + SourcePath: string
+    + TargetPath: string
+    + BackupType: string
+    + Full: string
+    + Differential: string
+    + CreateButton: string
+    + UpdateButton: string
+    + Cancel: string
+    + ExecuteTitle: string
+    + ExecuteSelected: string
+    + ExecuteAll: string
+    + Executing: string
+    + NoJobsAvailable: string
+    + Success: string
+    + Failed: string
+    + Error: string
+    + Browse: string
+    + Refresh: string
+    + ChangeLanguage(): void
+    - GetString(key: string): string
+    - {static} InitializeTranslations():\n\t Dictionary<string, Dictionary<Language, string>>
+  }
+
+  class ServiceLocator <<utility>> {
+    - {static} _initialized: bool
+    + {static} JobManagementService: JobManagementService
+    + {static} BackupExecutionService: BackupExecutionService
+    + {static} LanguageApplicationService: LanguageApplicationService
+    + {static} LocalizationService: LocalizationService
+    + {static} EventBus: IEventBus
+    + {static} StateManager: IStateManager
+    + {static} AppConfiguration: AppConfiguration
+    + {static} Initialize(): void
   }
 
   ' --- ViewModels ---
 
-  class JobListViewModel <<ViewModel>> {
-    - _jobService: JobManagementService
-    - _executionService: BackupExecutionService
-    + Jobs: ObservableCollection<BackupJob>
-    + SelectedJob: BackupJob?
-    + HasSelection: bool
-    + LoadJobsCommand: ICommand
-    + DeleteJobCommand: ICommand
-    + NavigateToCreateCommand: ICommand
-    + NavigateToEditCommand: ICommand
-    + LoadJobs(): void
+  class MainViewModel <<ViewModel>> {
+    - _languageService: LanguageApplicationService
+    - _currentViewModel: ObservableObject
+    - _currentLanguage: Language
+    + JobListViewModel: JobListViewModel
+    + CreateJobViewModel: CreateJobViewModel
+    + ExecuteJobViewModel: ExecuteJobViewModel
+    + Localization: LocalizationService
+    + CurrentViewModel: ObservableObject
+    + CurrentLanguage: Language
+    + ShowJobListCommand: ICommand
+    + ShowCreateJobCommand: ICommand
+    + ShowExecuteJobCommand: ICommand
+    + ToggleLanguageCommand: ICommand
+    - NavigateToJobList(): void
+    - NavigateToEdit(job: BackupJob): void
+    - NavigateToExecute(): void
+    - RefreshJobList(): void
+    - ToggleLanguage(): void
   }
 
-  class JobFormViewModel <<ViewModel>> {
+  class JobListViewModel <<ViewModel>> {
     - _jobService: JobManagementService
+    - _onEdit: Action<BackupJob>
+    - _onDelete: Action<int>
+    - _selectedJob: BackupJob?
+    - _statusMessage: string
+    + Jobs: ObservableCollection<BackupJob>
+    + SelectedJob: BackupJob?
+    + StatusMessage: string
+    + EditJobCommand: ICommand
+    + DeleteJobCommand: ICommand
+    + RefreshCommand: ICommand
+    + LoadJobs(): void
+    - DeleteSelected(): void
+  }
+
+  class CreateJobViewModel <<ViewModel>> {
+    - _jobService: JobManagementService
+    - _onJobCreated: Action
+    - _editingJobId: int?
     + Name: string
     + SourcePath: string
     + TargetPath: string
     + SelectedType: BackupType
-    + IsEditing: bool
-    + EditingJobId: int?
+    + StatusMessage: string
+    + IsEditMode: bool
+    + FormTitle: string
+    + BackupTypes: List<BackupType>
     + SaveCommand: ICommand
+    + CancelCommand: ICommand
     + BrowseSourceCommand: ICommand
     + BrowseTargetCommand: ICommand
-    + Validate(): bool
-    + Save(): void
+    + LoadForEdit(job: BackupJob): void
+    + ResetForm(): void
+    - Save(): void
+    - Cancel(): void
+    - BrowseSource(): void
+    - BrowseTarget(): void
+    - {static} FolderPicker(): Task<string?>
   }
 
-  class ExecutionViewModel <<ViewModel>> {
+  class ExecuteJobViewModel <<ViewModel>> {
     - _executionService: BackupExecutionService
+    - _jobManagementService: JobManagementService
     - _eventBus: IEventBus
-    + Progress: double
-    + CurrentFile: string
-    + CurrentStatus: string
-    + TotalFiles: int
-    + ProcessedFiles: int
+    + AvailableJobs: ObservableCollection<BackupJob>
+    + SelectedJobs: ObservableCollection<BackupJob>
+    + Results: ObservableCollection<JobExecutionResult>
     + IsExecuting: bool
-    + ExecuteCommand: AsyncRelayCommand
-    + CancelCommand: ICommand
-    + ExecuteJobs(jobIds: List<int>): Task
-    - OnStateChanged(event: StateChangedEvent): void
+    + StatusMessage: string
+    + OverallProgress: int
+    + CurrentFile: string
+    + FilesProcessed: int
+    + TotalFiles: int
+    + ExecuteSelectedCommand: ICommand
+    + ExecuteAllCommand: ICommand
+    + ToggleJobSelectionCommand: ICommand
+    + LoadJobs(): void
+    - ToggleSelection(job: BackupJob?): void
+    - ExecuteSelectedAsync(): Task
+    - ExecuteAllAsync(): Task
+    + Handle(event: StateChangedEvent): void
   }
 
-  class SettingsViewModel <<ViewModel>> {
-    - _languageService: LanguageApplicationService
-    - _config: AppConfiguration
-    + SelectedLanguage: Language
-    + SelectedLogFormat: LogFormat
-    + ChangeLanguageCommand: ICommand
-    + ChangeLogFormatCommand: ICommand
+  ' --- Views ---
+
+  class MainPage <<View>> {
+    - _viewModel: MainViewModel
+    - _jobListView: JobListView
+    - _createJobView: CreateJobView
+    - _executeJobView: ExecuteJobView
+    - _contentArea: ContentView?
+    + MainPage(viewModel: MainViewModel)
+    - OnViewModelPropertyChanged(\n\t sender: object?, e: PropertyChangedEventArgs): void
+    - UpdateContent(): void
   }
 
-  ' --- Views (XAML Pages) ---
-
-  class JobListPage <<View>> {
-    - BindingContext: JobListViewModel
-    + OnAppearing(): void
+  class JobListView <<View>> {
+    + JobListView()
   }
 
-  class JobFormPage <<View>> {
-    - BindingContext: JobFormViewModel
-    + OnAppearing(): void
+  class CreateJobView <<View>> {
+    + CreateJobView()
   }
 
-  class ExecutionPage <<View>> {
-    - BindingContext: ExecutionViewModel
-    + OnAppearing(): void
+  class ExecuteJobView <<View>> {
+    + ExecuteJobView()
+    - OnJobCheckedChanged(\n\t sender: object?,\n\t e: CheckedChangedEventArgs): void
   }
 
-  class SettingsPage <<View>> {
-    - BindingContext: SettingsViewModel
-    + OnAppearing(): void
-  }
 
-  class AppShell <<View>> {
-    + AppShell()
-    + RegisterRoutes(): void
-  }
 
-  ' --- Value Converters ---
-
-  class JobStateToColorConverter <<utility>> {
-    + Convert(value: object, ...): object
-    + ConvertBack(value: object, ...): object
-  }
-
-  class BackupTypeToStringConverter <<utility>> {
-    + Convert(value: object, ...): object
-    + ConvertBack(value: object, ...): object
-  }
+  
 }
 
 ' ===== COMPOSITION ROOT (MAUI) =====
@@ -585,7 +662,6 @@ package "Composition Root (MAUI)" #E1BEE7 {
 
   class MauiProgram {
     + {static} CreateMauiApp(): MauiApp
-    - {static} ConfigureServices(IServiceCollection): void
   }
 }
 
@@ -709,55 +785,77 @@ Program ..> TransferCompletedHandler : assembles
 Program ..> StateChangedHandler : assembles
 
 ' --- Presentation (MAUI): MVVM Inheritance ---
-ViewModelBase <|-- JobListViewModel
-ViewModelBase <|-- JobFormViewModel
-ViewModelBase <|-- ExecutionViewModel
-ViewModelBase <|-- SettingsViewModel
+ObservableObject <|-- MainViewModel
+ObservableObject <|-- JobListViewModel
+ObservableObject <|-- CreateJobViewModel
+ObservableObject <|-- ExecuteJobViewModel
+"IEventHandler<StateChangedEvent>" <|.. ExecuteJobViewModel
+
+' --- Presentation (MAUI): ICommand implementations ---
+ICommand <|.. RelayCommand
+ICommand <|.. RelayCommandT
+
+' --- Presentation (MAUI): LocalizationService implements INotifyPropertyChanged ---
+LocalizationService ..> LanguageApplicationService : reads language via
+
+' --- Presentation (MAUI): MainViewModel (Container ViewModel) ---
+MainViewModel "1" *-- "1" JobListViewModel : owns
+MainViewModel "1" *-- "1" CreateJobViewModel : owns
+MainViewModel "1" *-- "1" ExecuteJobViewModel : owns
+MainViewModel "1" --> "1" LocalizationService : exposes
+MainViewModel "1" --> "1" LanguageApplicationService : toggles language via
+MainViewModel ..> RelayCommand : uses
+MainViewModel ..> ServiceLocator : resolves services via
 
 ' --- Presentation (MAUI): View → ViewModel (Data Binding) ---
-JobListPage "1" --> "1" JobListViewModel : binds to
-JobFormPage "1" --> "1" JobFormViewModel : binds to
-ExecutionPage "1" --> "1" ExecutionViewModel : binds to
-SettingsPage "1" --> "1" SettingsViewModel : binds to
-AppShell "1" --> "*" JobListPage : navigates to
-AppShell "1" --> "*" JobFormPage : navigates to
-AppShell "1" --> "*" ExecutionPage : navigates to
-AppShell "1" --> "*" SettingsPage : navigates to
+MainPage "1" --> "1" MainViewModel : binds to
+MainPage "1" --> "1" JobListView : caches & displays
+MainPage "1" --> "1" CreateJobView : caches & displays
+MainPage "1" --> "1" ExecuteJobView : caches & displays
 
 ' --- Presentation (MAUI): ViewModel → Application Services ---
 JobListViewModel "1" --> "1" JobManagementService : CRUD via
-JobListViewModel "1" --> "1" BackupExecutionService : executes via
-JobFormViewModel "1" --> "1" JobManagementService : creates/modifies via
-ExecutionViewModel "1" --> "1" BackupExecutionService : executes via
-ExecutionViewModel "1" --> "1" IEventBus : subscribes to events via
-ExecutionViewModel ..> StateChangedEvent : listens to
-SettingsViewModel "1" --> "1" LanguageApplicationService : changes language via
-SettingsViewModel "1" --> "1" AppConfiguration : changes log format via
-
-' --- Presentation (MAUI): Commands ---
 JobListViewModel ..> RelayCommand : uses
-JobFormViewModel ..> RelayCommand : uses
-ExecutionViewModel ..> AsyncRelayCommand : uses
-SettingsViewModel ..> RelayCommand : uses
+JobListViewModel ..> ServiceLocator : resolves services via
+
+CreateJobViewModel "1" --> "1" JobManagementService : creates/modifies via
+CreateJobViewModel ..> RelayCommand : uses
+CreateJobViewModel ..> ServiceLocator : resolves services via
+
+ExecuteJobViewModel "1" --> "1" BackupExecutionService : executes via
+ExecuteJobViewModel "1" --> "1" JobManagementService : lists jobs via
+ExecuteJobViewModel "1" --> "1" IEventBus : subscribes to events via
+ExecuteJobViewModel ..> StateChangedEvent : handles
+ExecuteJobViewModel ..> RelayCommand : uses
+ExecuteJobViewModel ..> "RelayCommand<T>" : uses
+ExecuteJobViewModel ..> ServiceLocator : resolves services via
+
+' --- Presentation (MAUI): Converters → ServiceLocator ---
+BoolToSaveTextConverter ..> ServiceLocator : reads localization
+BoolToResultTextConverter ..> ServiceLocator : reads localization
 
 ' --- Composition Root (MAUI) ---
-MauiProgram ..> AppShell : assembles
-MauiProgram ..> JobListViewModel : registers
-MauiProgram ..> JobFormViewModel : registers
-MauiProgram ..> ExecutionViewModel : registers
-MauiProgram ..> SettingsViewModel : registers
-MauiProgram ..> JobListPage : registers
-MauiProgram ..> JobFormPage : registers
-MauiProgram ..> ExecutionPage : registers
-MauiProgram ..> SettingsPage : registers
-MauiProgram ..> JobManagementService : registers
-MauiProgram ..> BackupExecutionService : registers
-MauiProgram ..> LanguageApplicationService : registers
-MauiProgram ..> AppConfiguration : loads
-MauiProgram ..> TransferLoggerFactory : uses
-MauiProgram ..> InProcessEventBus : registers
-MauiProgram ..> TransferCompletedHandler : registers
-MauiProgram ..> StateChangedHandler : registers
+ServiceLocator ..> JobManagementService : creates
+ServiceLocator ..> BackupExecutionService : creates
+ServiceLocator ..> LanguageApplicationService : creates
+ServiceLocator ..> LocalizationService : creates
+ServiceLocator ..> AppConfiguration : loads
+ServiceLocator ..> TransferLoggerFactory : uses
+ServiceLocator ..> InProcessEventBus : creates
+ServiceLocator ..> TransferCompletedHandler : creates
+ServiceLocator ..> StateChangedHandler : creates
+ServiceLocator ..> FileJobRepository : creates
+ServiceLocator ..> LocalFileSystemGateway : creates
+ServiceLocator ..> UNCPathAdapter : creates
+ServiceLocator ..> BackupDomainService : creates
+ServiceLocator ..> ProgressTracker : creates
+ServiceLocator ..> BackupExecutor : creates
+ServiceLocator ..> BackupStrategyFactory : creates
+ServiceLocator ..> JsonStateManager : creates
+ServiceLocator ..> DailyLogsService : creates
+
+MauiProgram ..> ServiceLocator : calls Initialize()
+MauiProgram ..> MainPage : registers
 
 
 ' ========================================================
@@ -847,41 +945,82 @@ note bottom of JsonStateManager
   No separate Save() method needed.
 end note
 
-note right of ViewModelBase
-  **MVVM pattern**: ViewModelBase implements
-  INotifyPropertyChanged. All ViewModels inherit
-  from it. SetProperty<T>() triggers UI refresh
-  via data binding — Views have zero code-behind.
-  Consider using CommunityToolkit.Mvvm
-  [ObservableProperty] source generators
-  to eliminate this boilerplate entirely.
+note right of ObservableObject
+  **MVVM base class**: implements
+  INotifyPropertyChanged. All ViewModels
+  inherit from it. SetProperty<T>() triggers
+  UI refresh via data binding.
+  Views have minimal code-behind
+  (only view-switching logic in MainPage).
 end note
 
-note bottom of ExecutionViewModel
-  **Observer pattern** reuse: subscribes to
-  IEventBus for StateChangedEvent. When the
-  BackupExecutor publishes progress, the
-  ViewModel receives it and updates bound
-  properties → MAUI UI refreshes automatically.
+note bottom of MainViewModel
+  **Container ViewModel**: owns all child
+  ViewModels (created once, reused).
+  Manages navigation by swapping
+  CurrentViewModel. MainPage listens to
+  PropertyChanged and resolves the
+  matching View (View Resolver pattern).
+end note
+
+note bottom of ExecuteJobViewModel
+  **Observer pattern** reuse: implements
+  IEventHandler<StateChangedEvent> and
+  subscribes to IEventBus. When BackupExecutor
+  publishes progress, the ViewModel receives
+  it and updates bound properties.
   Uses MainThread.BeginInvokeOnMainThread()
   to marshal events to the UI thread.
+  Execution runs on background thread
+  via Task.Run() to avoid UI freezing.
 end note
 
-note bottom of MauiProgram
+note bottom of CreateJobViewModel
+  **Dual-mode ViewModel**: handles both
+  Create and Edit via IsEditMode flag.
+  LoadForEdit() populates form fields,
+  Save() delegates to create or modify.
+  Avoids duplicating form logic across
+  two separate ViewModels.
+end note
+
+note right of ServiceLocator
   **Composition Root** for MAUI.
-  Registers the same Application + Infrastructure
-  services as the CLI Program.cs, plus the new
-  ViewModels and Pages. Both presentation layers
-  share the exact same service graph.
-  Uses builder.Services (Microsoft.Extensions.DI).
+  Static service container (initialized once).
+  Assembles the same Application + Infrastructure
+  services as the CLI Program.cs.
+  Both presentation layers share the exact
+  same service graph.
+  Uses %APPDATA%\EasySave for persistence.
+end note
+
+note bottom of LocalizationService
+  **Reactive i18n**: implements INotifyPropertyChanged.
+  All string properties are data-bound to XAML.
+  ChangeLanguage() fires PropertyChanged("") which
+  refreshes every bound string in the UI.
+  Supports EN and FR with a static translation
+  dictionary.
 end note
 
 note bottom of RelayCommand
   **Command pattern**: wraps Action delegates
   as ICommand for XAML binding. CanExecute()
-  controls button enabled state. Alternative:
-  use [RelayCommand] from CommunityToolkit.Mvvm
-  to auto-generate these from methods.
+  controls button enabled state.
+  RelayCommand<T> provides strongly-typed
+  parameter support (e.g., BackupJob).
+  RaiseCanExecuteChanged() re-evaluates
+  button state from the ViewModel.
+end note
+
+note bottom of MainPage
+  **View Resolver**: code-behind maps
+  CurrentViewModel type to cached View
+  instances via pattern matching.
+  This is the only code-behind with logic —
+  all other Views have empty code-behind.
+  Uses programmatic switching instead of
+  DataTemplateSelector (MAUI workaround).
 end note
 
 @enduml
