@@ -29,6 +29,13 @@ public class LocalizationService : INotifyPropertyChanged
     public string Execute => GetString("nav.execute");
     public string Settings => GetString("nav.settings");
     public string LanguageToggle => GetString("nav.language");
+    
+    // Navigation without icons (for sidebar)
+    public string JobListNav => GetString("nav.job_list_text");
+    public string CreateJobNav => GetString("nav.create_job_text");
+    public string ExecuteNav => GetString("nav.execute_text");
+    public string SettingsNav => GetString("nav.settings_text");
+    public string LanguageToggleNav => GetString("nav.language_text");
 
     // Job List View
     public string JobListTitle => GetString("joblist.title");
@@ -98,12 +105,19 @@ public class LocalizationService : INotifyPropertyChanged
         {
             ["app.title"] = new() { [Language.EN] = "EasySave", [Language.FR] = "EasySave" },
 
-            // Navigation
+            // Navigation (with icons - legacy)
             ["nav.job_list"] = new() { [Language.EN] = "📋 Job List", [Language.FR] = "📋 Liste des Tâches" },
             ["nav.create_job"] = new() { [Language.EN] = "➕ Create Job", [Language.FR] = "➕ Créer une Tâche" },
             ["nav.execute"] = new() { [Language.EN] = "▶️ Execute", [Language.FR] = "▶️ Exécuter" },
             ["nav.settings"] = new() { [Language.EN] = "⚙️ Settings", [Language.FR] = "⚙️ Paramètres" },
             ["nav.language"] = new() { [Language.EN] = "🌐 EN / FR", [Language.FR] = "🌐 EN / FR" },
+            
+            // Navigation (text only - for sidebar with separate icons)
+            ["nav.job_list_text"] = new() { [Language.EN] = "Job List", [Language.FR] = "Liste des Tâches" },
+            ["nav.create_job_text"] = new() { [Language.EN] = "Create Job", [Language.FR] = "Créer une Tâche" },
+            ["nav.execute_text"] = new() { [Language.EN] = "Execute", [Language.FR] = "Exécuter" },
+            ["nav.settings_text"] = new() { [Language.EN] = "Settings", [Language.FR] = "Paramètres" },
+            ["nav.language_text"] = new() { [Language.EN] = "EN / FR", [Language.FR] = "EN / FR" },
 
             // Job List
             ["joblist.title"] = new() { [Language.EN] = "Backup Jobs", [Language.FR] = "Tâches de Sauvegarde" },

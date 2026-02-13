@@ -13,53 +13,78 @@
         <Border Grid.Column="0"
                 BackgroundColor="#F5F5F5"
                 StrokeThickness="0">
-            <VerticalStackLayout Spacing="5" Padding="15">
+            <VerticalStackLayout Spacing="0" Padding="15">
 
                 <!-- App Title -->
                 <Label Text="{Binding Localization.AppTitle}"
                        FontSize="22" FontAttributes="Bold"
                        TextColor="#1976D2"
-                       Margin="0,10,0,20"/>
+                       Margin="10,10,10,20"/>
 
                 <!-- Nav Buttons -->
-                <Button Text="{Binding Localization.JobList}"
-                        Command="{Binding ShowJobListCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="Black"
-                        FontSize="15"
-                        HorizontalOptions="Fill"/>
+                <Grid HeightRequest="44" ColumnDefinitions="30,*" Padding="10,0" HorizontalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowJobListCommand}"/>
+                    </Grid.GestureRecognizers>
+                    <Label Grid.Column="0" Text="📋" FontSize="15" VerticalOptions="Center"/>
+                    <Label Grid.Column="1" Text="{Binding Localization.JobListNav}"
+                           TextColor="Black"
+                           FontSize="15"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Start"/>
+                </Grid>
 
-                <Button Text="{Binding Localization.CreateJob}"
-                        Command="{Binding ShowCreateJobCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="Black"
-                        FontSize="15"
-                        HorizontalOptions="Fill"/>
+                <Grid HeightRequest="44" ColumnDefinitions="30,*" Padding="10,0" HorizontalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowCreateJobCommand}"/>
+                    </Grid.GestureRecognizers>
+                    <Label Grid.Column="0" Text="➕" FontSize="15" VerticalOptions="Center"/>
+                    <Label Grid.Column="1" Text="{Binding Localization.CreateJobNav}"
+                           TextColor="Black"
+                           FontSize="15"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Start"/>
+                </Grid>
 
-                <Button Text="{Binding Localization.Execute}"
-                        Command="{Binding ShowExecuteJobCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="Black"
-                        FontSize="15"
-                        HorizontalOptions="Fill"/>
+                <Grid HeightRequest="44" ColumnDefinitions="30,*" Padding="10,0" HorizontalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowExecuteJobCommand}"/>
+                    </Grid.GestureRecognizers>
+                    <Label Grid.Column="0" Text="▶️" FontSize="15" VerticalOptions="Center"/>
+                    <Label Grid.Column="1" Text="{Binding Localization.ExecuteNav}"
+                           TextColor="Black"
+                           FontSize="15"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Start"/>
+                </Grid>
 
-                <Button Text="{Binding Localization.Settings}"
-                        Command="{Binding ShowSettingsCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="Black"
-                        FontSize="15"
-                        HorizontalOptions="Fill"/>
+                <Grid HeightRequest="44" ColumnDefinitions="30,*" Padding="10,0" HorizontalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowSettingsCommand}"/>
+                    </Grid.GestureRecognizers>
+                    <Label Grid.Column="0" Text="⚙️" FontSize="15" VerticalOptions="Center"/>
+                    <Label Grid.Column="1" Text="{Binding Localization.SettingsNav}"
+                           TextColor="Black"
+                           FontSize="15"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Start"/>
+                </Grid>
 
                 <!-- Spacer -->
-                <BoxView HeightRequest="1" Color="#E0E0E0" Margin="0,15"/>
+                <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,15"/>
 
                 <!-- Language Toggle -->
-                <Button Text="{Binding Localization.LanguageToggle}"
-                        Command="{Binding ToggleLanguageCommand}"
-                        BackgroundColor="Transparent"
-                        TextColor="Gray"
-                        FontSize="13"
-                        HorizontalOptions="Fill"/>
+                <Grid HeightRequest="40" ColumnDefinitions="30,*" Padding="10,0" HorizontalOptions="Fill">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ToggleLanguageCommand}"/>
+                    </Grid.GestureRecognizers>
+                    <Label Grid.Column="0" Text="🌐" FontSize="13" VerticalOptions="Center"/>
+                    <Label Grid.Column="1" Text="{Binding Localization.LanguageToggleNav}"
+                           TextColor="Gray"
+                           FontSize="13"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Start"/>
+                </Grid>
 
             </VerticalStackLayout>
         </Border>
