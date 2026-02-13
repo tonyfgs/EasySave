@@ -16,6 +16,7 @@ public class MainViewModel : ObservableObject
     public JobListViewModel JobListViewModel { get; }
     public CreateJobViewModel CreateJobViewModel { get; }
     public ExecuteJobViewModel ExecuteJobViewModel { get; }
+    public SettingsViewModel SettingsViewModel { get; }
     public LocalizationService Localization { get; }
 
     public ObservableObject CurrentViewModel
@@ -40,6 +41,7 @@ public class MainViewModel : ObservableObject
     public ICommand ShowJobListCommand { get; }
     public ICommand ShowCreateJobCommand { get; }
     public ICommand ShowExecuteJobCommand { get; }
+    public ICommand ShowSettingsCommand { get; }
     public ICommand ToggleLanguageCommand { get; }
 
     public MainViewModel()
@@ -55,12 +57,14 @@ public class MainViewModel : ObservableObject
         CreateJobViewModel = new CreateJobViewModel(
             onJobCreated: () => NavigateToJobList());
         ExecuteJobViewModel = new ExecuteJobViewModel();
+        SettingsViewModel = new SettingsViewModel();
 
         _currentViewModel = JobListViewModel;
 
         ShowJobListCommand = new RelayCommand(NavigateToJobList);
         ShowCreateJobCommand = new RelayCommand(() => CurrentViewModel = CreateJobViewModel);
         ShowExecuteJobCommand = new RelayCommand(NavigateToExecute);
+        ShowSettingsCommand = new RelayCommand(() => CurrentViewModel = SettingsViewModel);
         ToggleLanguageCommand = new RelayCommand(ToggleLanguage);
     }
 
