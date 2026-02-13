@@ -14,7 +14,24 @@ public class ProcessDetector : IBusinessSoftwareDetector
 
     public BusinessSoftwareStatus GetStatus()
     {
-        return BusinessSoftwareStatus.Disabled;
+        if (!_config.IsDetectionEnabled())
+            return BusinessSoftwareStatus.Disabled;
+
+        var name = _config.GetBusinessSoftwareName();
+        if (string.IsNullOrWhiteSpace(name))
+            return BusinessSoftwareStatus.Disabled;
+
+        try
+        {
+            var processes = FindProcesses(name);
+            return processes.Length > 0
+                ? BusinessSoftwareStatus.Running
+                : BusinessSoftwareStatus.NotRunning;
+        }
+        catch
+        {
+            return BusinessSoftwareStatus.Error;
+        }
     }
 
     protected virtual Process[] FindProcesses(string name)
