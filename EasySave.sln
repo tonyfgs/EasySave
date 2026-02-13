@@ -1,5 +1,4 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 #
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Console", "Console\Console.csproj", "{CCC2FF92-FC13-49D8-8E1F-0EAF367A8409}"
 EndProject
@@ -84,6 +83,10 @@ Global
 		{AAD8559B-AF90-439D-96EF-0E2F6780E978}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AAD8559B-AF90-439D-96EF-0E2F6780E978}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AAD8559B-AF90-439D-96EF-0E2F6780E978}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84B1814C-E246-4861-B107-44158325730E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84B1814C-E246-4861-B107-44158325730E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84B1814C-E246-4861-B107-44158325730E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84B1814C-E246-4861-B107-44158325730E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{661C8807-4693-4759-BBC8-136F441FDB54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{661C8807-4693-4759-BBC8-136F441FDB54}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{661C8807-4693-4759-BBC8-136F441FDB54}.Release|Any CPU.ActiveCfg = Release|Any CPU

@@ -64,13 +64,21 @@ public static class ServiceLocator
         var domainService = new BackupDomainService();
         var tracker = new ProgressTracker();
 
+        var encryptionService = new DisabledEncryptionService();
+        IEncryptionConfig encryptionConfig = appConfig;
+        var businessSoftwareDetector = new DisabledBusinessSoftwareDetector();
+        IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
+
         var backupExecutor = new BackupExecutor(
-            fileSystem, pathAdapter, eventBus, domainService, tracker);
+            fileSystem, pathAdapter, eventBus, domainService, tracker,
+            encryptionService, encryptionConfig, businessSoftwareDetector,
+            businessSoftwareConfig);
         var strategyFactory = new BackupStrategyFactory();
 
-        JobManagementService = new JobManagementService(jobRepository, domainService);
+        JobManagementService = new JobManagementService(jobRepository);
         BackupExecutionService = new BackupExecutionService(
-            jobRepository, backupExecutor, strategyFactory);
+            jobRepository, backupExecutor, strategyFactory,
+            businessSoftwareDetector, businessSoftwareConfig, eventBus);
         LanguageApplicationService = new LanguageApplicationService(appConfig);
         LocalizationService = new LocalizationService(LanguageApplicationService);
 

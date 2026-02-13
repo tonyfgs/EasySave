@@ -174,6 +174,7 @@ public class CreateJobViewModel : ObservableObject
     /// </summary>
     private static async Task<string?> FolderPicker()
     {
+        await Task.CompletedTask;
         try
         {
             // var result = await CommunityToolkit.Maui.Storage.FolderPicker.Default.PickAsync();
