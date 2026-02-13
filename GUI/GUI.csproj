@@ -25,6 +25,7 @@
         <Nullable>enable</Nullable>
 
 
+        <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">win-x64</RuntimeIdentifier>
         <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">maccatalyst-arm64</RuntimeIdentifier>
         <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">iossimulator-arm64</RuntimeIdentifier>
 
