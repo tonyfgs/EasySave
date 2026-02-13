@@ -1,6 +1,7 @@
 @startuml
 scale 0.1
-title EasySave v2.0 Class Diagram
+title EasySave v3.0 Class Diagram (with MAUI MVVM)
+
 
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
@@ -42,63 +43,47 @@ package "Shared Kernel" #F5F5F5 {
 package "Domain" #FEFECE {
 
   enum BackupType <<enumeration>> {
-    FULL
-    DIFFERENTIAL
+    Full
+    Differential
   }
 
   enum JobState <<enumeration>> {
-    INACTIVE
-    ACTIVE
-    END
-    ERROR
-    BLOCKED
+    Inactive
+    Active
+    End
+    Error
   }
 
   class BackupJob <<AggregateRoot>> {
-    - id: int
-    - name: string
-    - sourcePath: string
-    - targetPath: string
-    - type: BackupType
-    - lastFullBackupDate: DateTime?
-    - createdDate: DateTime
+    + Id: int { get; set; }
+    + Name: string { get; set; }
+    + SourcePath: string { get; set; }
+    + TargetPath: string { get; set; }
+    + Type: BackupType { get; set; }
+    + LastFullBackupDate: DateTime? { get; set; }
+    + CreatedDate: DateTime { get; set; }
     + BackupJob(id: int, name: string,\n\t sourcePath: string, targetPath: string,\n\t type: BackupType)
-    + GetId(): int
-    + GetName(): string
-    + GetSourcePath(): string
-    + GetTargetPath(): string
-    + GetType(): BackupType
-    + GetLastFullBackupDate(): DateTime?
+    + BackupJob()
     + Validate(): void
     + IsFileModifiedSinceLastFull(file: FileDescriptor): bool
     + MarkFullBackupCompleted(date: DateTime): void
   }
 
-  class FileDescriptor <<ValueObject>> {
-    - path: string
-    - size: long
-    - lastModified: DateTime
-    + FileDescriptor(path: string, size: long,\n\t lastModified: DateTime)
-    + GetPath(): string
-    + GetSize(): long
-    + GetLastModified(): DateTime
-    + Equals(other: object): bool
-    + GetHashCode(): int
+  class FileDescriptor <<ValueObject>> <<record>> {
+    + Path: string { get; init; }
+    + Size: long { get; init; }
+    + LastModified: DateTime { get; init; }
+    + FileDescriptor(Path: string, Size: long,\n\t LastModified: DateTime)
   }
 
-  class BackupResult <<ValueObject>> {
-    - success: bool
-    - filesProcessed: int
-    - bytesTransferred: long
-    - duration: TimeSpan
-    - errors: IReadOnlyList<string>
+  class BackupResult <<ValueObject>> <<record>> {
+    + Success: bool { get; init; }
+    + FilesProcessed: int { get; init; }
+    + BytesTransferred: long { get; init; }
+    + Duration: TimeSpan { get; init; }
+    + Errors: IReadOnlyList<string> { get; init; }
     + {static} Ok(filesProcessed: int,\n\t bytesTransferred: long,\n\t duration: TimeSpan): BackupResult
     + {static} Fail(errors: List<string>,\n\t duration: TimeSpan): BackupResult
-    + IsSuccess(): bool
-    + GetFilesProcessed(): int
-    + GetBytesTransferred(): long
-    + GetDuration(): TimeSpan
-    + GetErrors(): IReadOnlyList<string>
   }
 
   interface IBackupStrategy <<interface>> {
@@ -136,45 +121,41 @@ package "Application" #E8F5E9 {
 
   ' --- DTOs (Application concerns, not Domain) ---
 
-  class StateSnapshot <<DTO>> {
-    + Name: string
-    + Timestamp: DateTime
-    + State: JobState
-    + TotalFilesCount: int
-    + TotalFilesSize: long
-    + Progress: int
-    + RemainingFilesCount: int
-    + RemainingFilesSize: long
-    + CurrentSourceFilePath: string
-    + CurrentTargetFilePath: string
-    + BlockReason: string?
+  class StateSnapshot <<DTO>> <<record>> {
+    + Name: string { get; init; }
+    + Timestamp: DateTime { get; init; }
+    + State: JobState { get; init; }
+    + TotalFiles: int { get; init; }
+    + TotalSize: long { get; init; }
+    + Progress: int { get; init; }
+    + FilesRemaining: int { get; init; }
+    + SizeRemaining: long { get; init; }
+    + CurrentSourceFile: string { get; init; }
+    + CurrentDestFile: string { get; init; }
   }
 
-  class TransferLog <<DTO>> {
-    + Timestamp: DateTime
-    + BackupJobName: string
-    + SourceFilePath: string
-    + TargetFilePath: string
-    + FileSize: long
-    + TransferTimeMs: long
-    + EncryptionTimeMs: long
+  class TransferLog <<DTO>> <<record>> {
+    + Timestamp: DateTime { get; init; }
+    + BackupName: string { get; init; }
+    + SourcePath: string { get; init; }
+    + DestPath: string { get; init; }
+    + FileSize: long { get; init; }
+    + TransferTimeMs: long { get; init; }
   }
 
-  class JobExecutionResult <<DTO>> {
-    + JobId: int
-    + Result: BackupResult
+  class JobExecutionResult <<DTO>> <<record>> {
+    + JobId: int { get; init; }
+    + Result: BackupResult { get; init; }
   }
 
   ' --- Application Events (not Domain Events — infrastructure notification) ---
 
-  class TransferCompletedEvent {
-    + Transfer: TransferLog
-    + TransferCompletedEvent(transfer: TransferLog)
+  class TransferCompletedEvent <<record>> {
+    + Transfer: TransferLog { get; init; }
   }
 
-  class StateChangedEvent {
-    + Snapshot: StateSnapshot
-    + StateChangedEvent(snapshot: StateSnapshot)
+  class StateChangedEvent <<record>> {
+    + Snapshot: StateSnapshot { get; init; }
   }
 
   interface IEventHandler<T> <<interface>> {
@@ -294,13 +275,18 @@ package "Application" #E8F5E9 {
   ' --- Application Services ---
 
   class ProgressTracker {
-    - totalFiles: int
-    - processedFiles: int
-    - totalBytes: long
-    - processedBytes: long
-    - blockReason: string?
+    - _totalFiles: int
+    - _processedFiles: int
+    - _totalBytes: long
+    - _processedBytes: long
+    - _currentSourceFile: string
+    - _currentDestFile: string
+    - _state: JobState
     + Initialize(files: List<FileDescriptor>): void
     + FileProcessed(file: FileDescriptor): void
+    + SetCurrentFile(sourcePath: string,\n\t destPath: string): void
+    + ClearCurrentFile(): void
+    + SetState(state: JobState): void
     + BuildSnapshot(jobName: string): StateSnapshot
     + GetProgress(): int
     + Reset(): void
@@ -371,35 +357,41 @@ package "EasyLog (DLL)" #E0F7FA {
 package "Infrastructure" #E3F2FD {
 
   class FileJobRepository {
-    - filePath: string
+    - _filePath: string
+    - _jobs: List<BackupJob>
+    + FileJobRepository(filePath: string)
     + Save(job: BackupJob): void
     + Delete(id: int): void
     + GetAll(): List<BackupJob>
     + GetById(id: int): BackupJob?
     + Update(job: BackupJob): void
     + Count(): int
+    - GenerateId(): int
     - PersistToDisk(): void
-    - LoadFromDisk(): void
+    - LoadFromDisk(): List<BackupJob>
   }
 
   class JsonStateManager {
-    - filePath: string
-    - states: List<StateSnapshot>
+    - _filePath: string
+    - _states: List<StateSnapshot>
+    + JsonStateManager(filePath: string)
     + UpdateState(snapshot: StateSnapshot): void
     + GetAllStates(): List<StateSnapshot>
     + ClearAll(): void
+    - PersistToDisk(): void
+    - LoadFromDisk(): List<StateSnapshot>
   }
 
   class JsonTransferLogger {
-    - logDirectory: string
-    - easyLogger: IEasyLogger
+    - _logDirectory: string
+    + JsonTransferLogger(logDirectory: string)
     + LogTransfer(log: TransferLog): void
-    - GetDailyLogPath(): string
   }
 
   class XmlTransferLogger {
-    - logDirectory: string
-    - easyLogger: IEasyLogger
+    - _logDirectory: string
+    - _easyLogger: IEasyLogger
+    + XmlTransferLogger(logDirectory: string,\n\t easyLogger: IEasyLogger)
     + LogTransfer(log: TransferLog): void
     - GetDailyLogPath(): string
   }
@@ -417,34 +409,25 @@ package "Infrastructure" #E3F2FD {
   }
 
   class AppConfiguration {
-    - configPath: string
-    - logFormat: LogFormat
-    - language: Language
-    - logDirectory: string
-    - encryptedExtensions: List<string>
-    - encryptionKey: string
-    - businessSoftwareName: string
-    - detectionEnabled: bool
+    - _configPath: string
+    - _logDirectory: string
+    - _language: Language
+    - _logFormat: LogFormat
+    + AppConfiguration(configPath: string,\n\t logDirectory: string)
     + GetLogFormat(): LogFormat
     + SetLogFormat(format: LogFormat): void
     + GetLanguage(): Language
     + SetLanguage(lang: Language): void
     + GetLogDirectory(): string
-    + GetEncryptedExtensions(): IReadOnlyList<string>
-    + SetEncryptedExtensions(extensions: IReadOnlyList<string>): void
-    + GetEncryptionKey(): string
-    + SetEncryptionKey(key: string): void
-    + GetBusinessSoftwareName(): string
-    + SetBusinessSoftwareName(name: string): void
-    + IsDetectionEnabled(): bool
-    + SetDetectionEnabled(enabled: bool): void
-    + Load(): void
     + Save(): void
+    - Load(): void
   }
 
   class TransferLoggerFactory <<factory>> {
-    - config: AppConfiguration
-    - easyLogger: IEasyLogger
+    - _logFormat: LogFormat
+    - _easyLogger: IEasyLogger
+    - _logDirectory: string
+    + TransferLoggerFactory(logFormat: LogFormat,\n\t easyLogger: IEasyLogger, logDirectory: string)
     + Create(): ITransferLogger
   }
 
@@ -481,32 +464,44 @@ package "Presentation (CLI)" #FFF3E0 {
   }
 
   class CreateJobCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + CreateJobCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ExecuteJobCommand {
-    - executionService: BackupExecutionService
+    - _executionService: BackupExecutionService
+    - _output: TextWriter
+    + ExecuteJobCommand(executionService: BackupExecutionService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class DeleteJobCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + DeleteJobCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ListJobsCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + ListJobsCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ModifyJobCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + ModifyJobCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ChangeLanguageCommand {
-    - languageService: LanguageApplicationService
+    - _languageService: LanguageApplicationService
+    - _output: TextWriter
+    + ChangeLanguageCommand(languageService: LanguageApplicationService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
@@ -520,21 +515,31 @@ package "Presentation (CLI)" #FFF3E0 {
   }
 
   class LanguageManager {
-    - languageService: LanguageApplicationService
-    - resources: Dictionary<string, Dictionary<Language, string>>
+    - _languageService: LanguageApplicationService
+    - _resources: Dictionary<string, Dictionary<Language, string>>
     + LanguageManager(languageService: LanguageApplicationService)
-    + GetString(key: string): string
     + GetCurrentLanguage(): Language
+    + GetString(key: string): string
+    - {static} InitializeResources():\n\t Dictionary<string, Dictionary<Language, string>>
   }
 
   class ConsoleUI {
-    - languageManager: LanguageManager
-    - inputParser: InputParser
-    - commands: Dictionary<string, ICommand>
+    - _languageManager: LanguageManager
+    - _inputParser: InputParser
+    - _commands: Dictionary<string, ICommand>
+    - _input: TextReader
+    - _output: TextWriter
+    + ConsoleUI(languageManager: LanguageManager,\n\t inputParser: InputParser,\n\t commands: Dictionary<string, ICommand>,\n\t input: TextReader, output: TextWriter)
     + Run(): void
     - ShowMenu(): void
     - ReadInput(): string
-    - DispatchCommand(name: string,\n\t args: List<string>): void
+    - DispatchCommand(name: string): void
+    - GatherArgs(commandKey: string): List<string>
+    - GatherCreateArgs(): List<string>
+    - GatherModifyArgs(): List<string>
+    - GatherDeleteArgs(): List<string>
+    - GatherExecuteArgs(): List<string>
+    - GatherLanguageArgs(): List<string>
   }
 }
 
@@ -543,7 +548,7 @@ package "Composition Root (CLI)" #F3E5F5 {
 
   class Program {
     + {static} Main(args: string[]): void
-    - {static} ConfigureServices(): void
+    - {static} HandleCommandLineArgs(args: string[],\n\t inputParser: InputParser,\n\t executionService: BackupExecutionService,\n\t output: TextWriter): void
   }
 }
 
@@ -552,122 +557,234 @@ package "Presentation (MAUI)" #FFE0B2 {
 
   ' --- MVVM Base Infrastructure ---
 
-  abstract class ViewModelBase <<ViewModel>> {
-    # PropertyChanged: event PropertyChangedEventHandler
-    # SetProperty<T>(field: ref T, value: T,\n\t [CallerMemberName] propertyName: string): bool
-    # OnPropertyChanged(propertyName: string): void
+  abstract class ObservableObject <<ViewModel>> {
+    + PropertyChanged: event PropertyChangedEventHandler
+    # OnPropertyChanged([CallerMemberName]\n\t propertyName: string?): void
+    # SetProperty<T>(field: ref T, value: T,\n\t [CallerMemberName] propertyName: string?): bool
   }
 
   class RelayCommand <<utility>> {
     - _execute: Action<object?>
-    - _canExecute: Func<object?, bool>?
-    + RelayCommand(execute: Action<object?>,\n\t canExecute: Func<object?, bool>?)
+    - _canExecute: Predicate<object?>?
+    + RelayCommand(execute: Action<object?>,\n\t canExecute: Predicate<object?>?)
+    + RelayCommand(execute: Action,\n\t canExecute: Func<bool>?)
     + Execute(parameter: object?): void
     + CanExecute(parameter: object?): bool
     + RaiseCanExecuteChanged(): void
   }
 
-  class AsyncRelayCommand <<utility>> {
-    - _execute: Func<object?, Task>
-    - _canExecute: Func<object?, bool>?
-    - _isRunning: bool
-    + AsyncRelayCommand(execute: Func<object?, Task>,\n\t canExecute: Func<object?, bool>?)
-    + ExecuteAsync(parameter: object?): Task
+  class "RelayCommand<T>" as RelayCommandT <<utility>> {
+    - _execute: Action<T?>
+    - _canExecute: Predicate<T?>?
+    + RelayCommand(execute: Action<T?>,\n\t canExecute: Predicate<T?>?)
+    + Execute(parameter: object?): void
     + CanExecute(parameter: object?): bool
-    + IsRunning: bool
+    + RaiseCanExecuteChanged(): void
+  }
+
+  ' --- Services ---
+
+  class LocalizationService <<service>> {
+    - _languageService: LanguageApplicationService
+    - _translations: Dictionary<string,\n\t Dictionary<Language, string>>
+    + PropertyChanged: event PropertyChangedEventHandler
+    + AppTitle: string
+    + JobList: string
+    + CreateJob: string
+    + Execute: string
+    + LanguageToggle: string
+    + JobListTitle: string
+    + NoJobs: string
+    + Edit: string
+    + Delete: string
+    + CreateJobTitle: string
+    + EditJobTitle: string
+    + JobName: string
+    + SourcePath: string
+    + TargetPath: string
+    + BackupType: string
+    + Full: string
+    + Differential: string
+    + CreateButton: string
+    + UpdateButton: string
+    + Cancel: string
+    + ExecuteTitle: string
+    + ExecuteSelected: string
+    + ExecuteAll: string
+    + Executing: string
+    + NoJobsAvailable: string
+    + Success: string
+    + Failed: string
+    + Error: string
+    + Browse: string
+    + Refresh: string
+    + ChangeLanguage(): void
+    - GetString(key: string): string
+    - {static} InitializeTranslations():\n\t Dictionary<string, Dictionary<Language, string>>
+  }
+
+  class ServiceLocator <<utility>> {
+    - {static} _initialized: bool
+    + {static} JobManagementService: JobManagementService
+    + {static} BackupExecutionService: BackupExecutionService
+    + {static} LanguageApplicationService: LanguageApplicationService
+    + {static} LocalizationService: LocalizationService
+    + {static} EventBus: IEventBus
+    + {static} StateManager: IStateManager
+    + {static} AppConfiguration: AppConfiguration
+    + {static} Initialize(): void
   }
 
   ' --- ViewModels ---
 
-  class JobListViewModel <<ViewModel>> {
-    - _jobService: JobManagementService
-    - _executionService: BackupExecutionService
-    + Jobs: ObservableCollection<BackupJob>
-    + SelectedJob: BackupJob?
-    + HasSelection: bool
-    + LoadJobsCommand: ICommand
-    + DeleteJobCommand: ICommand
-    + NavigateToCreateCommand: ICommand
-    + NavigateToEditCommand: ICommand
-    + LoadJobs(): void
+  class MainViewModel <<ViewModel>> {
+    - _languageService: LanguageApplicationService
+    - _currentViewModel: ObservableObject
+    - _currentLanguage: Language
+    + JobListViewModel: JobListViewModel
+    + CreateJobViewModel: CreateJobViewModel
+    + ExecuteJobViewModel: ExecuteJobViewModel
+    + Localization: LocalizationService
+    + CurrentViewModel: ObservableObject
+    + CurrentLanguage: Language
+    + ShowJobListCommand: ICommand
+    + ShowCreateJobCommand: ICommand
+    + ShowExecuteJobCommand: ICommand
+    + ToggleLanguageCommand: ICommand
+    - NavigateToJobList(): void
+    - NavigateToEdit(job: BackupJob): void
+    - NavigateToExecute(): void
+    - RefreshJobList(): void
+    - ToggleLanguage(): void
   }
 
-  class JobFormViewModel <<ViewModel>> {
+  class JobListViewModel <<ViewModel>> {
     - _jobService: JobManagementService
+    - _onEdit: Action<BackupJob>
+    - _onDelete: Action<int>
+    - _selectedJob: BackupJob?
+    - _statusMessage: string
+    + Jobs: ObservableCollection<BackupJob>
+    + SelectedJob: BackupJob?
+    + StatusMessage: string
+    + EditJobCommand: ICommand
+    + DeleteJobCommand: ICommand
+    + RefreshCommand: ICommand
+    + LoadJobs(): void
+    - DeleteSelected(): void
+  }
+
+  class CreateJobViewModel <<ViewModel>> {
+    - _jobService: JobManagementService
+    - _onJobCreated: Action
+    - _editingJobId: int?
     + Name: string
     + SourcePath: string
     + TargetPath: string
     + SelectedType: BackupType
-    + IsEditing: bool
-    + EditingJobId: int?
+    + StatusMessage: string
+    + IsEditMode: bool
+    + FormTitle: string
+    + BackupTypes: List<BackupType>
     + SaveCommand: ICommand
+    + CancelCommand: ICommand
     + BrowseSourceCommand: ICommand
     + BrowseTargetCommand: ICommand
-    + Validate(): bool
-    + Save(): void
+    + LoadForEdit(job: BackupJob): void
+    + ResetForm(): void
+    - Save(): void
+    - Cancel(): void
+    - BrowseSource(): void
+    - BrowseTarget(): void
+    - {static} FolderPicker(): Task<string?>
   }
 
-  class ExecutionViewModel <<ViewModel>> {
+  class ExecuteJobViewModel <<ViewModel>> {
     - _executionService: BackupExecutionService
+    - _jobManagementService: JobManagementService
     - _eventBus: IEventBus
-    + Progress: double
-    + CurrentFile: string
-    + CurrentStatus: string
-    + TotalFiles: int
-    + ProcessedFiles: int
+    + AvailableJobs: ObservableCollection<BackupJob>
+    + SelectedJobs: ObservableCollection<BackupJob>
+    + Results: ObservableCollection<JobExecutionResult>
     + IsExecuting: bool
-    + ExecuteCommand: AsyncRelayCommand
-    + CancelCommand: ICommand
-    + ExecuteJobs(jobIds: List<int>): Task
-    - OnStateChanged(event: StateChangedEvent): void
+    + StatusMessage: string
+    + OverallProgress: int
+    + CurrentFile: string
+    + FilesProcessed: int
+    + TotalFiles: int
+    + ExecuteSelectedCommand: ICommand
+    + ExecuteAllCommand: ICommand
+    + ToggleJobSelectionCommand: ICommand
+    + LoadJobs(): void
+    - ToggleSelection(job: BackupJob?): void
+    - ExecuteSelectedAsync(): Task
+    - ExecuteAllAsync(): Task
+    + Handle(event: StateChangedEvent): void
   }
 
-  class SettingsViewModel <<ViewModel>> {
-    - _languageService: LanguageApplicationService
-    - _config: AppConfiguration
-    + SelectedLanguage: Language
-    + SelectedLogFormat: LogFormat
-    + ChangeLanguageCommand: ICommand
-    + ChangeLogFormatCommand: ICommand
+  ' --- Views ---
+
+  class MainPage <<View>> {
+    - _viewModel: MainViewModel
+    - _jobListView: JobListView
+    - _createJobView: CreateJobView
+    - _executeJobView: ExecuteJobView
+    - _contentArea: ContentView?
+    + MainPage(viewModel: MainViewModel)
+    - OnViewModelPropertyChanged(\n\t sender: object?, e: PropertyChangedEventArgs): void
+    - UpdateContent(): void
   }
 
-  ' --- Views (XAML Pages) ---
-
-  class JobListPage <<View>> {
-    - BindingContext: JobListViewModel
-    + OnAppearing(): void
+  class JobListView <<View>> {
+    + JobListView()
   }
 
-  class JobFormPage <<View>> {
-    - BindingContext: JobFormViewModel
-    + OnAppearing(): void
+  class CreateJobView <<View>> {
+    + CreateJobView()
   }
 
-  class ExecutionPage <<View>> {
-    - BindingContext: ExecutionViewModel
-    + OnAppearing(): void
-  }
-
-  class SettingsPage <<View>> {
-    - BindingContext: SettingsViewModel
-    + OnAppearing(): void
-  }
-
-  class AppShell <<View>> {
-    + AppShell()
-    + RegisterRoutes(): void
+  class ExecuteJobView <<View>> {
+    + ExecuteJobView()
+    - OnJobCheckedChanged(\n\t sender: object?,\n\t e: CheckedChangedEventArgs): void
   }
 
   ' --- Value Converters ---
 
-  class JobStateToColorConverter <<utility>> {
-    + Convert(value: object, ...): object
-    + ConvertBack(value: object, ...): object
+  class InverseBoolConverter {
+    + Convert(value: object?, ...): object?
+    + ConvertBack(value: object?, ...): object?
   }
 
-  class BackupTypeToStringConverter <<utility>> {
-    + Convert(value: object, ...): object
-    + ConvertBack(value: object, ...): object
+  class StringNotEmptyConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class BoolToSaveTextConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class IntToDoubleConverter {
+    + Convert(value: object?, ...): object?
+    + ConvertBack(value: object?, ...): object?
+  }
+
+  class IntToBoolConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class BoolToColorConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class BoolToResultTextConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  ' --- App ---
+
+  class App {
+    + App()
+    # CreateWindow(activationState: IActivationState?): Window
   }
 }
 
@@ -676,7 +793,6 @@ package "Composition Root (MAUI)" #E1BEE7 {
 
   class MauiProgram {
     + {static} CreateMauiApp(): MauiApp
-    - {static} ConfigureServices(IServiceCollection): void
   }
 }
 
@@ -740,6 +856,7 @@ BackupExecutionService ..> BusinessSoftwareDetectedEvent : publishes
 
 ProgressTracker ..> FileDescriptor : tracks
 ProgressTracker ..> StateSnapshot : builds
+ProgressTracker ..> JobState : uses
 
 BackupStrategyFactory ..> IBackupStrategy : creates
 BackupStrategyFactory ..> BackupType : receives
@@ -762,13 +879,12 @@ IBusinessSoftwareConfig <|.. AppConfiguration
 IEncryptionService <|.. DisabledEncryptionService
 IBusinessSoftwareDetector <|.. DisabledBusinessSoftwareDetector
 
-JsonTransferLogger "1" --> "1" IEasyLogger : delegates to
 XmlTransferLogger "1" --> "1" IEasyLogger : delegates to
 
 IEventBus <|.. InProcessEventBus
 InProcessEventBus "1" o-- "0..*" "IEventHandler<T>" : registers
 
-TransferLoggerFactory "1" --> "1" AppConfiguration : reads format from
+TransferLoggerFactory "1" --> "1" LogFormat : uses
 TransferLoggerFactory "1" --> "1" IEasyLogger : injects into loggers
 TransferLoggerFactory ..> ITransferLogger : creates
 
@@ -814,55 +930,88 @@ Program ..> TransferCompletedHandler : assembles
 Program ..> StateChangedHandler : assembles
 
 ' --- Presentation (MAUI): MVVM Inheritance ---
-ViewModelBase <|-- JobListViewModel
-ViewModelBase <|-- JobFormViewModel
-ViewModelBase <|-- ExecutionViewModel
-ViewModelBase <|-- SettingsViewModel
+ObservableObject <|-- MainViewModel
+ObservableObject <|-- JobListViewModel
+ObservableObject <|-- CreateJobViewModel
+ObservableObject <|-- ExecuteJobViewModel
+"IEventHandler<StateChangedEvent>" <|.. ExecuteJobViewModel
+
+' --- Presentation (MAUI): ICommand implementations ---
+ICommand <|.. RelayCommand
+ICommand <|.. RelayCommandT
+
+' --- Presentation (MAUI): LocalizationService implements INotifyPropertyChanged ---
+LocalizationService ..> LanguageApplicationService : reads language via
+
+' --- Presentation (MAUI): MainViewModel (Container ViewModel) ---
+MainViewModel "1" *-- "1" JobListViewModel : owns
+MainViewModel "1" *-- "1" CreateJobViewModel : owns
+MainViewModel "1" *-- "1" ExecuteJobViewModel : owns
+MainViewModel "1" --> "1" LocalizationService : exposes
+MainViewModel "1" --> "1" LanguageApplicationService : toggles language via
+MainViewModel ..> RelayCommand : uses
+MainViewModel ..> ServiceLocator : resolves services via
 
 ' --- Presentation (MAUI): View → ViewModel (Data Binding) ---
-JobListPage "1" --> "1" JobListViewModel : binds to
-JobFormPage "1" --> "1" JobFormViewModel : binds to
-ExecutionPage "1" --> "1" ExecutionViewModel : binds to
-SettingsPage "1" --> "1" SettingsViewModel : binds to
-AppShell "1" --> "*" JobListPage : navigates to
-AppShell "1" --> "*" JobFormPage : navigates to
-AppShell "1" --> "*" ExecutionPage : navigates to
-AppShell "1" --> "*" SettingsPage : navigates to
+MainPage "1" --> "1" MainViewModel : binds to
+MainPage "1" --> "1" JobListView : caches & displays
+MainPage "1" --> "1" CreateJobView : caches & displays
+MainPage "1" --> "1" ExecuteJobView : caches & displays
 
 ' --- Presentation (MAUI): ViewModel → Application Services ---
 JobListViewModel "1" --> "1" JobManagementService : CRUD via
-JobListViewModel "1" --> "1" BackupExecutionService : executes via
-JobFormViewModel "1" --> "1" JobManagementService : creates/modifies via
-ExecutionViewModel "1" --> "1" BackupExecutionService : executes via
-ExecutionViewModel "1" --> "1" IEventBus : subscribes to events via
-ExecutionViewModel ..> StateChangedEvent : listens to
-SettingsViewModel "1" --> "1" LanguageApplicationService : changes language via
-SettingsViewModel "1" --> "1" AppConfiguration : changes log format via
-
-' --- Presentation (MAUI): Commands ---
 JobListViewModel ..> RelayCommand : uses
-JobFormViewModel ..> RelayCommand : uses
-ExecutionViewModel ..> AsyncRelayCommand : uses
-SettingsViewModel ..> RelayCommand : uses
+JobListViewModel ..> ServiceLocator : resolves services via
+
+CreateJobViewModel "1" --> "1" JobManagementService : creates/modifies via
+CreateJobViewModel ..> RelayCommand : uses
+CreateJobViewModel ..> ServiceLocator : resolves services via
+
+ExecuteJobViewModel "1" --> "1" BackupExecutionService : executes via
+ExecuteJobViewModel "1" --> "1" JobManagementService : lists jobs via
+ExecuteJobViewModel "1" --> "1" IEventBus : subscribes to events via
+ExecuteJobViewModel ..> StateChangedEvent : handles
+ExecuteJobViewModel ..> RelayCommand : uses
+ExecuteJobViewModel ..> "RelayCommand<T>" : uses
+ExecuteJobViewModel ..> ServiceLocator : resolves services via
+
+' --- Presentation (MAUI): Converters ---
+BoolToSaveTextConverter ..> ServiceLocator : reads localization
+BoolToResultTextConverter ..> ServiceLocator : reads localization
+InverseBoolConverter ..|> "IValueConverter"
+StringNotEmptyConverter ..|> "IValueConverter"
+BoolToSaveTextConverter ..|> "IValueConverter"
+IntToDoubleConverter ..|> "IValueConverter"
+IntToBoolConverter ..|> "IValueConverter"
+BoolToColorConverter ..|> "IValueConverter"
+BoolToResultTextConverter ..|> "IValueConverter"
 
 ' --- Composition Root (MAUI) ---
-MauiProgram ..> AppShell : assembles
-MauiProgram ..> JobListViewModel : registers
-MauiProgram ..> JobFormViewModel : registers
-MauiProgram ..> ExecutionViewModel : registers
-MauiProgram ..> SettingsViewModel : registers
-MauiProgram ..> JobListPage : registers
-MauiProgram ..> JobFormPage : registers
-MauiProgram ..> ExecutionPage : registers
-MauiProgram ..> SettingsPage : registers
-MauiProgram ..> JobManagementService : registers
-MauiProgram ..> BackupExecutionService : registers
-MauiProgram ..> LanguageApplicationService : registers
-MauiProgram ..> AppConfiguration : loads
-MauiProgram ..> TransferLoggerFactory : uses
-MauiProgram ..> InProcessEventBus : registers
-MauiProgram ..> TransferCompletedHandler : registers
-MauiProgram ..> StateChangedHandler : registers
+ServiceLocator ..> JobManagementService : creates
+ServiceLocator ..> BackupExecutionService : creates
+ServiceLocator ..> LanguageApplicationService : creates
+ServiceLocator ..> LocalizationService : creates
+ServiceLocator ..> AppConfiguration : loads
+ServiceLocator ..> TransferLoggerFactory : uses
+ServiceLocator ..> InProcessEventBus : creates
+ServiceLocator ..> TransferCompletedHandler : creates
+ServiceLocator ..> StateChangedHandler : creates
+ServiceLocator ..> FileJobRepository : creates
+ServiceLocator ..> LocalFileSystemGateway : creates
+ServiceLocator ..> UNCPathAdapter : creates
+ServiceLocator ..> BackupDomainService : creates
+ServiceLocator ..> ProgressTracker : creates
+ServiceLocator ..> BackupExecutor : creates
+ServiceLocator ..> BackupStrategyFactory : creates
+ServiceLocator ..> JsonStateManager : creates
+ServiceLocator ..> DailyLogsService : creates
+
+MauiProgram ..> App : configures MAUI for
+
+' --- Presentation (MAUI): App → Composition ---
+App ..> ServiceLocator : calls Initialize()
+App ..> MainViewModel : creates
+App ..> MainPage : creates
 
 
 ' ========================================================
@@ -870,7 +1019,9 @@ MauiProgram ..> StateChangedHandler : registers
 ' ========================================================
 
 note right of BackupJob
-  **Aggregate Root**: protects business invariants only.
+  **Aggregate Root**: uses public properties
+  (C# convention) with Validate() protecting
+  business invariants.
   Validate() throws InvalidBackupJobException if:
   - name is empty
   - source or target path is empty
@@ -879,7 +1030,7 @@ note right of BackupJob
   is handled by IPathAdapter (infrastructure concern).
   IsFileModifiedSinceLastFull() encapsulates the
   differential backup business rule using
-  the entity's own lastFullBackupDate state.
+  the entity's own LastFullBackupDate state.
 end note
 
 note bottom of IBackupStrategy
@@ -891,8 +1042,9 @@ note bottom of IBackupStrategy
 end note
 
 note bottom of FileDescriptor
-  **Immutable Value Object**.
-  Equality defined by Path + Size + LastModified.
+  **Immutable Value Object** (C# record).
+  Equality auto-generated by record type
+  based on Path + Size + LastModified.
   No identity — two descriptors with same
   values are considered equal.
 end note
@@ -952,41 +1104,82 @@ note bottom of JsonStateManager
   No separate Save() method needed.
 end note
 
-note right of ViewModelBase
-  **MVVM pattern**: ViewModelBase implements
-  INotifyPropertyChanged. All ViewModels inherit
-  from it. SetProperty<T>() triggers UI refresh
-  via data binding — Views have zero code-behind.
-  Consider using CommunityToolkit.Mvvm
-  [ObservableProperty] source generators
-  to eliminate this boilerplate entirely.
+note right of ObservableObject
+  **MVVM base class**: implements
+  INotifyPropertyChanged. All ViewModels
+  inherit from it. SetProperty<T>() triggers
+  UI refresh via data binding.
+  Views have minimal code-behind
+  (only view-switching logic in MainPage).
 end note
 
-note bottom of ExecutionViewModel
-  **Observer pattern** reuse: subscribes to
-  IEventBus for StateChangedEvent. When the
-  BackupExecutor publishes progress, the
-  ViewModel receives it and updates bound
-  properties → MAUI UI refreshes automatically.
+note bottom of MainViewModel
+  **Container ViewModel**: owns all child
+  ViewModels (created once, reused).
+  Manages navigation by swapping
+  CurrentViewModel. MainPage listens to
+  PropertyChanged and resolves the
+  matching View (View Resolver pattern).
+end note
+
+note bottom of ExecuteJobViewModel
+  **Observer pattern** reuse: implements
+  IEventHandler<StateChangedEvent> and
+  subscribes to IEventBus. When BackupExecutor
+  publishes progress, the ViewModel receives
+  it and updates bound properties.
   Uses MainThread.BeginInvokeOnMainThread()
   to marshal events to the UI thread.
+  Execution runs on background thread
+  via Task.Run() to avoid UI freezing.
 end note
 
-note bottom of MauiProgram
+note bottom of CreateJobViewModel
+  **Dual-mode ViewModel**: handles both
+  Create and Edit via IsEditMode flag.
+  LoadForEdit() populates form fields,
+  Save() delegates to create or modify.
+  Avoids duplicating form logic across
+  two separate ViewModels.
+end note
+
+note right of ServiceLocator
   **Composition Root** for MAUI.
-  Registers the same Application + Infrastructure
-  services as the CLI Program.cs, plus the new
-  ViewModels and Pages. Both presentation layers
-  share the exact same service graph.
-  Uses builder.Services (Microsoft.Extensions.DI).
+  Static service container (initialized once).
+  Assembles the same Application + Infrastructure
+  services as the CLI Program.cs.
+  Both presentation layers share the exact
+  same service graph.
+  Uses %APPDATA%\EasySave for persistence.
+end note
+
+note bottom of LocalizationService
+  **Reactive i18n**: implements INotifyPropertyChanged.
+  All string properties are data-bound to XAML.
+  ChangeLanguage() fires PropertyChanged("") which
+  refreshes every bound string in the UI.
+  Supports EN and FR with a static translation
+  dictionary.
 end note
 
 note bottom of RelayCommand
   **Command pattern**: wraps Action delegates
   as ICommand for XAML binding. CanExecute()
-  controls button enabled state. Alternative:
-  use [RelayCommand] from CommunityToolkit.Mvvm
-  to auto-generate these from methods.
+  controls button enabled state.
+  RelayCommand<T> provides strongly-typed
+  parameter support (e.g., BackupJob).
+  RaiseCanExecuteChanged() re-evaluates
+  button state from the ViewModel.
+end note
+
+note bottom of MainPage
+  **View Resolver**: code-behind maps
+  CurrentViewModel type to cached View
+  instances via pattern matching.
+  This is the only code-behind with logic —
+  all other Views have empty code-behind.
+  Uses programmatic switching instead of
+  DataTemplateSelector (MAUI workaround).
 end note
 
 @enduml

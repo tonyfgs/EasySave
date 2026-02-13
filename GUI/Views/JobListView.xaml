@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GUI.ViewModels"
+             xmlns:model="clr-namespace:Model;assembly=Model"
+             x:Class="GUI.Views.JobListView"
+             x:DataType="vm:JobListViewModel">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <Label Grid.Column="0"
+                   Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.JobListTitle}"
+                   FontSize="24" FontAttributes="Bold"
+                   VerticalOptions="Center"/>
+            <Button Grid.Column="1"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Refresh, StringFormat='⟳ {0}'}"
+                    Command="{Binding RefreshCommand}"
+                    VerticalOptions="Center"/>
+        </Grid>
+
+        <!-- Job List -->
+        <Border Grid.Row="1" Stroke="#E0E0E0" StrokeThickness="1"
+                StrokeShape="RoundRectangle 8" Padding="0">
+            <CollectionView ItemsSource="{Binding Jobs}"
+                            SelectedItem="{Binding SelectedJob, Mode=TwoWay}"
+                            SelectionMode="Single">
+                <CollectionView.EmptyView>
+                    <Label Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.NoJobs}"
+                           HorizontalOptions="Center" VerticalOptions="Center"
+                           FontSize="16" TextColor="Gray" Margin="20"/>
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:BackupJob">
+                        <Border Stroke="Transparent" Padding="15,10"
+                                BackgroundColor="Transparent">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup Name="CommonStates">
+                                    <VisualState Name="Normal"/>
+                                    <VisualState Name="Selected">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="#E3F2FD"/>
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="15">
+                                <!-- ID Badge -->
+                                <Border Grid.Column="0"
+                                        BackgroundColor="#1976D2"
+                                        StrokeShape="RoundRectangle 4"
+                                        Stroke="Transparent"
+                                        Padding="8,4"
+                                        VerticalOptions="Center">
+                                    <Label Text="{Binding Id, StringFormat='#{0}'}"
+                                           TextColor="White" FontAttributes="Bold"
+                                           FontSize="14"/>
+                                </Border>
+
+                                <!-- Job details -->
+                                <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="16" FontAttributes="Bold"/>
+                                    <Label FontSize="12" TextColor="Gray">
+                                        <Label.Text>
+                                            <MultiBinding StringFormat="{}{0}  →  {1}">
+                                                <Binding Path="SourcePath"/>
+                                                <Binding Path="TargetPath"/>
+                                            </MultiBinding>
+                                        </Label.Text>
+                                    </Label>
+                                </VerticalStackLayout>
+
+                                <!-- Type badge -->
+                                <Border Grid.Column="2"
+                                        BackgroundColor="#E8F5E9"
+                                        StrokeShape="RoundRectangle 4"
+                                        Stroke="Transparent"
+                                        Padding="10,4"
+                                        VerticalOptions="Center">
+                                    <Label Text="{Binding Type}"
+                                           TextColor="#2E7D32" FontSize="12"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Border>
+
+        <!-- Footer: Status + Actions -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+            <Label Grid.Column="0"
+                   Text="{Binding StatusMessage}"
+                   VerticalOptions="Center" TextColor="Gray"/>
+            <Button Grid.Column="1"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Edit, StringFormat='✏️ {0}'}"
+                    Command="{Binding EditJobCommand}"
+                    Margin="0,0,10,0"/>
+            <Button Grid.Column="2"
+                    Text="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.Localization.Delete, StringFormat='🗑️ {0}'}"
+                    Command="{Binding DeleteJobCommand}"
+                    BackgroundColor="#EF5350" TextColor="White"/>
+        </Grid>
+
+    </Grid>
+</ContentView>

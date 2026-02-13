@@ -1,0 +1,67 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GUI.ViewModels"
+             xmlns:views="clr-namespace:GUI.Views"
+             x:Class="GUI.MainPage"
+             x:DataType="vm:MainViewModel"
+             Title="EasySave">
+
+    <Grid ColumnDefinitions="220,*">
+
+        <!-- Sidebar Navigation -->
+        <Border Grid.Column="0"
+                BackgroundColor="#F5F5F5"
+                StrokeThickness="0">
+            <VerticalStackLayout Spacing="5" Padding="15">
+
+                <!-- App Title -->
+                <Label Text="{Binding Localization.AppTitle}"
+                       FontSize="22" FontAttributes="Bold"
+                       TextColor="#1976D2"
+                       Margin="0,10,0,20"/>
+
+                <!-- Nav Buttons -->
+                <Button Text="{Binding Localization.JobList}"
+                        Command="{Binding ShowJobListCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        FontSize="15"
+                        HorizontalOptions="Fill"/>
+
+                <Button Text="{Binding Localization.CreateJob}"
+                        Command="{Binding ShowCreateJobCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        FontSize="15"
+                        HorizontalOptions="Fill"/>
+
+                <Button Text="{Binding Localization.Execute}"
+                        Command="{Binding ShowExecuteJobCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        FontSize="15"
+                        HorizontalOptions="Fill"/>
+
+                <!-- Spacer -->
+                <BoxView HeightRequest="1" Color="#E0E0E0" Margin="0,15"/>
+
+                <!-- Language Toggle -->
+                <Button Text="{Binding Localization.LanguageToggle}"
+                        Command="{Binding ToggleLanguageCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="Gray"
+                        FontSize="13"
+                        HorizontalOptions="Fill"/>
+
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- Content Area - DataTemplateSelector approach -->
+        <ContentView Grid.Column="1" BindingContext="{Binding CurrentViewModel}">
+            <!-- We use a ContentView and swap content programmatically -->
+        </ContentView>
+
+    </Grid>
+
+</ContentPage>
