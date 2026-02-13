@@ -24,7 +24,10 @@ public class ProcessDetector : IBusinessSoftwareDetector
         try
         {
             var processes = FindProcesses(name);
-            return processes.Length > 0
+            var isRunning = processes.Length > 0;
+            foreach (var process in processes)
+                process.Dispose();
+            return isRunning
                 ? BusinessSoftwareStatus.Running
                 : BusinessSoftwareStatus.NotRunning;
         }
