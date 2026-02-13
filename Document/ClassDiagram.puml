@@ -42,62 +42,47 @@ package "Shared Kernel" #F5F5F5 {
 package "Domain" #FEFECE {
 
   enum BackupType <<enumeration>> {
-    FULL
-    DIFFERENTIAL
+    Full
+    Differential
   }
 
   enum JobState <<enumeration>> {
-    INACTIVE
-    ACTIVE
-    END
-    ERROR
+    Inactive
+    Active
+    End
+    Error
   }
 
   class BackupJob <<AggregateRoot>> {
-    - id: int
-    - name: string
-    - sourcePath: string
-    - targetPath: string
-    - type: BackupType
-    - lastFullBackupDate: DateTime?
-    - createdDate: DateTime
+    + Id: int { get; set; }
+    + Name: string { get; set; }
+    + SourcePath: string { get; set; }
+    + TargetPath: string { get; set; }
+    + Type: BackupType { get; set; }
+    + LastFullBackupDate: DateTime? { get; set; }
+    + CreatedDate: DateTime { get; set; }
     + BackupJob(id: int, name: string,\n\t sourcePath: string, targetPath: string,\n\t type: BackupType)
-    + GetId(): int
-    + GetName(): string
-    + GetSourcePath(): string
-    + GetTargetPath(): string
-    + GetType(): BackupType
-    + GetLastFullBackupDate(): DateTime?
+    + BackupJob()
     + Validate(): void
     + IsFileModifiedSinceLastFull(file: FileDescriptor): bool
     + MarkFullBackupCompleted(date: DateTime): void
   }
 
-  class FileDescriptor <<ValueObject>> {
-    - path: string
-    - size: long
-    - lastModified: DateTime
-    + FileDescriptor(path: string, size: long,\n\t lastModified: DateTime)
-    + GetPath(): string
-    + GetSize(): long
-    + GetLastModified(): DateTime
-    + Equals(other: object): bool
-    + GetHashCode(): int
+  class FileDescriptor <<ValueObject>> <<record>> {
+    + Path: string { get; init; }
+    + Size: long { get; init; }
+    + LastModified: DateTime { get; init; }
+    + FileDescriptor(Path: string, Size: long,\n\t LastModified: DateTime)
   }
 
-  class BackupResult <<ValueObject>> {
-    - success: bool
-    - filesProcessed: int
-    - bytesTransferred: long
-    - duration: TimeSpan
-    - errors: IReadOnlyList<string>
+  class BackupResult <<ValueObject>> <<record>> {
+    + Success: bool { get; init; }
+    + FilesProcessed: int { get; init; }
+    + BytesTransferred: long { get; init; }
+    + Duration: TimeSpan { get; init; }
+    + Errors: IReadOnlyList<string> { get; init; }
     + {static} Ok(filesProcessed: int,\n\t bytesTransferred: long,\n\t duration: TimeSpan): BackupResult
     + {static} Fail(errors: List<string>,\n\t duration: TimeSpan): BackupResult
-    + IsSuccess(): bool
-    + GetFilesProcessed(): int
-    + GetBytesTransferred(): long
-    + GetDuration(): TimeSpan
-    + GetErrors(): IReadOnlyList<string>
   }
 
   interface IBackupStrategy <<interface>> {
@@ -135,43 +120,41 @@ package "Application" #E8F5E9 {
 
   ' --- DTOs (Application concerns, not Domain) ---
 
-  class StateSnapshot <<DTO>> {
-    + Name: string
-    + Timestamp: DateTime
-    + State: JobState
-    + TotalFilesCount: int
-    + TotalFilesSize: long
-    + Progress: int
-    + RemainingFilesCount: int
-    + RemainingFilesSize: long
-    + CurrentSourceFilePath: string
-    + CurrentTargetFilePath: string
+  class StateSnapshot <<DTO>> <<record>> {
+    + Name: string { get; init; }
+    + Timestamp: DateTime { get; init; }
+    + State: JobState { get; init; }
+    + TotalFiles: int { get; init; }
+    + TotalSize: long { get; init; }
+    + Progress: int { get; init; }
+    + FilesRemaining: int { get; init; }
+    + SizeRemaining: long { get; init; }
+    + CurrentSourceFile: string { get; init; }
+    + CurrentDestFile: string { get; init; }
   }
 
-  class TransferLog <<DTO>> {
-    + Timestamp: DateTime
-    + BackupJobName: string
-    + SourceFilePath: string
-    + TargetFilePath: string
-    + FileSize: long
-    + TransferTimeMs: long
+  class TransferLog <<DTO>> <<record>> {
+    + Timestamp: DateTime { get; init; }
+    + BackupName: string { get; init; }
+    + SourcePath: string { get; init; }
+    + DestPath: string { get; init; }
+    + FileSize: long { get; init; }
+    + TransferTimeMs: long { get; init; }
   }
 
-  class JobExecutionResult <<DTO>> {
-    + JobId: int
-    + Result: BackupResult
+  class JobExecutionResult <<DTO>> <<record>> {
+    + JobId: int { get; init; }
+    + Result: BackupResult { get; init; }
   }
 
   ' --- Application Events (not Domain Events — infrastructure notification) ---
 
-  class TransferCompletedEvent {
-    + Transfer: TransferLog
-    + TransferCompletedEvent(transfer: TransferLog)
+  class TransferCompletedEvent <<record>> {
+    + Transfer: TransferLog { get; init; }
   }
 
-  class StateChangedEvent {
-    + Snapshot: StateSnapshot
-    + StateChangedEvent(snapshot: StateSnapshot)
+  class StateChangedEvent <<record>> {
+    + Snapshot: StateSnapshot { get; init; }
   }
 
   interface IEventHandler<T> <<interface>> {
@@ -236,12 +219,18 @@ package "Application" #E8F5E9 {
   ' --- Application Services ---
 
   class ProgressTracker {
-    - totalFiles: int
-    - processedFiles: int
-    - totalBytes: long
-    - processedBytes: long
+    - _totalFiles: int
+    - _processedFiles: int
+    - _totalBytes: long
+    - _processedBytes: long
+    - _currentSourceFile: string
+    - _currentDestFile: string
+    - _state: JobState
     + Initialize(files: List<FileDescriptor>): void
     + FileProcessed(file: FileDescriptor): void
+    + SetCurrentFile(sourcePath: string,\n\t destPath: string): void
+    + ClearCurrentFile(): void
+    + SetState(state: JobState): void
     + BuildSnapshot(jobName: string): StateSnapshot
     + GetProgress(): int
     + Reset(): void
@@ -301,35 +290,41 @@ package "EasyLog (DLL)" #E0F7FA {
 package "Infrastructure" #E3F2FD {
 
   class FileJobRepository {
-    - filePath: string
+    - _filePath: string
+    - _jobs: List<BackupJob>
+    + FileJobRepository(filePath: string)
     + Save(job: BackupJob): void
     + Delete(id: int): void
     + GetAll(): List<BackupJob>
     + GetById(id: int): BackupJob?
     + Update(job: BackupJob): void
     + Count(): int
+    - GenerateId(): int
     - PersistToDisk(): void
-    - LoadFromDisk(): void
+    - LoadFromDisk(): List<BackupJob>
   }
 
   class JsonStateManager {
-    - filePath: string
-    - states: List<StateSnapshot>
+    - _filePath: string
+    - _states: List<StateSnapshot>
+    + JsonStateManager(filePath: string)
     + UpdateState(snapshot: StateSnapshot): void
     + GetAllStates(): List<StateSnapshot>
     + ClearAll(): void
+    - PersistToDisk(): void
+    - LoadFromDisk(): List<StateSnapshot>
   }
 
   class JsonTransferLogger {
-    - logDirectory: string
-    - easyLogger: IEasyLogger
+    - _logDirectory: string
+    + JsonTransferLogger(logDirectory: string)
     + LogTransfer(log: TransferLog): void
-    - GetDailyLogPath(): string
   }
 
   class XmlTransferLogger {
-    - logDirectory: string
-    - easyLogger: IEasyLogger
+    - _logDirectory: string
+    - _easyLogger: IEasyLogger
+    + XmlTransferLogger(logDirectory: string,\n\t easyLogger: IEasyLogger)
     + LogTransfer(log: TransferLog): void
     - GetDailyLogPath(): string
   }
@@ -347,22 +342,25 @@ package "Infrastructure" #E3F2FD {
   }
 
   class AppConfiguration {
-    - configPath: string
-    - logFormat: LogFormat
-    - language: Language
-    - logDirectory: string
+    - _configPath: string
+    - _logDirectory: string
+    - _language: Language
+    - _logFormat: LogFormat
+    + AppConfiguration(configPath: string,\n\t logDirectory: string)
     + GetLogFormat(): LogFormat
     + SetLogFormat(format: LogFormat): void
     + GetLanguage(): Language
     + SetLanguage(lang: Language): void
     + GetLogDirectory(): string
-    + Load(): void
     + Save(): void
+    - Load(): void
   }
 
   class TransferLoggerFactory <<factory>> {
-    - config: AppConfiguration
-    - easyLogger: IEasyLogger
+    - _logFormat: LogFormat
+    - _easyLogger: IEasyLogger
+    - _logDirectory: string
+    + TransferLoggerFactory(logFormat: LogFormat,\n\t easyLogger: IEasyLogger, logDirectory: string)
     + Create(): ITransferLogger
   }
 
@@ -390,32 +388,44 @@ package "Presentation (CLI)" #FFF3E0 {
   }
 
   class CreateJobCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + CreateJobCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ExecuteJobCommand {
-    - executionService: BackupExecutionService
+    - _executionService: BackupExecutionService
+    - _output: TextWriter
+    + ExecuteJobCommand(executionService: BackupExecutionService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class DeleteJobCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + DeleteJobCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ListJobsCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + ListJobsCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ModifyJobCommand {
-    - jobService: JobManagementService
+    - _jobService: JobManagementService
+    - _output: TextWriter
+    + ModifyJobCommand(jobService: JobManagementService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
   class ChangeLanguageCommand {
-    - languageService: LanguageApplicationService
+    - _languageService: LanguageApplicationService
+    - _output: TextWriter
+    + ChangeLanguageCommand(languageService: LanguageApplicationService,\n\t output: TextWriter?)
     + Execute(args: List<string>): CommandResult
   }
 
@@ -429,21 +439,31 @@ package "Presentation (CLI)" #FFF3E0 {
   }
 
   class LanguageManager {
-    - languageService: LanguageApplicationService
-    - resources: Dictionary<string, Dictionary<Language, string>>
+    - _languageService: LanguageApplicationService
+    - _resources: Dictionary<string, Dictionary<Language, string>>
     + LanguageManager(languageService: LanguageApplicationService)
-    + GetString(key: string): string
     + GetCurrentLanguage(): Language
+    + GetString(key: string): string
+    - {static} InitializeResources():\n\t Dictionary<string, Dictionary<Language, string>>
   }
 
   class ConsoleUI {
-    - languageManager: LanguageManager
-    - inputParser: InputParser
-    - commands: Dictionary<string, ICommand>
+    - _languageManager: LanguageManager
+    - _inputParser: InputParser
+    - _commands: Dictionary<string, ICommand>
+    - _input: TextReader
+    - _output: TextWriter
+    + ConsoleUI(languageManager: LanguageManager,\n\t inputParser: InputParser,\n\t commands: Dictionary<string, ICommand>,\n\t input: TextReader, output: TextWriter)
     + Run(): void
     - ShowMenu(): void
     - ReadInput(): string
-    - DispatchCommand(name: string,\n\t args: List<string>): void
+    - DispatchCommand(name: string): void
+    - GatherArgs(commandKey: string): List<string>
+    - GatherCreateArgs(): List<string>
+    - GatherModifyArgs(): List<string>
+    - GatherDeleteArgs(): List<string>
+    - GatherExecuteArgs(): List<string>
+    - GatherLanguageArgs(): List<string>
   }
 }
 
@@ -452,7 +472,7 @@ package "Composition Root (CLI)" #F3E5F5 {
 
   class Program {
     + {static} Main(args: string[]): void
-    - {static} ConfigureServices(): void
+    - {static} HandleCommandLineArgs(args: string[],\n\t inputParser: InputParser,\n\t executionService: BackupExecutionService,\n\t output: TextWriter): void
   }
 }
 
@@ -652,9 +672,44 @@ package "Presentation (MAUI)" #FFE0B2 {
     - OnJobCheckedChanged(\n\t sender: object?,\n\t e: CheckedChangedEventArgs): void
   }
 
+  ' --- Value Converters ---
 
+  class InverseBoolConverter {
+    + Convert(value: object?, ...): object?
+    + ConvertBack(value: object?, ...): object?
+  }
 
-  
+  class StringNotEmptyConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class BoolToSaveTextConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class IntToDoubleConverter {
+    + Convert(value: object?, ...): object?
+    + ConvertBack(value: object?, ...): object?
+  }
+
+  class IntToBoolConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class BoolToColorConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  class BoolToResultTextConverter {
+    + Convert(value: object?, ...): object?
+  }
+
+  ' --- App ---
+
+  class App {
+    + App()
+    # CreateWindow(activationState: IActivationState?): Window
+  }
 }
 
 ' ===== COMPOSITION ROOT (MAUI) =====
@@ -715,6 +770,7 @@ BackupExecutionService ..> JobExecutionResult : returns
 
 ProgressTracker ..> FileDescriptor : tracks
 ProgressTracker ..> StateSnapshot : builds
+ProgressTracker ..> JobState : uses
 
 BackupStrategyFactory ..> IBackupStrategy : creates
 BackupStrategyFactory ..> BackupType : receives
@@ -733,13 +789,12 @@ IFileSystemGateway <|.. LocalFileSystemGateway
 IPathAdapter <|.. UNCPathAdapter
 ILanguageConfig <|.. AppConfiguration
 
-JsonTransferLogger "1" --> "1" IEasyLogger : delegates to
 XmlTransferLogger "1" --> "1" IEasyLogger : delegates to
 
 IEventBus <|.. InProcessEventBus
 InProcessEventBus "1" o-- "0..*" "IEventHandler<T>" : registers
 
-TransferLoggerFactory "1" --> "1" AppConfiguration : reads format from
+TransferLoggerFactory "1" --> "1" LogFormat : uses
 TransferLoggerFactory "1" --> "1" IEasyLogger : injects into loggers
 TransferLoggerFactory ..> ITransferLogger : creates
 
@@ -830,9 +885,16 @@ ExecuteJobViewModel ..> RelayCommand : uses
 ExecuteJobViewModel ..> "RelayCommand<T>" : uses
 ExecuteJobViewModel ..> ServiceLocator : resolves services via
 
-' --- Presentation (MAUI): Converters → ServiceLocator ---
+' --- Presentation (MAUI): Converters ---
 BoolToSaveTextConverter ..> ServiceLocator : reads localization
 BoolToResultTextConverter ..> ServiceLocator : reads localization
+InverseBoolConverter ..|> "IValueConverter"
+StringNotEmptyConverter ..|> "IValueConverter"
+BoolToSaveTextConverter ..|> "IValueConverter"
+IntToDoubleConverter ..|> "IValueConverter"
+IntToBoolConverter ..|> "IValueConverter"
+BoolToColorConverter ..|> "IValueConverter"
+BoolToResultTextConverter ..|> "IValueConverter"
 
 ' --- Composition Root (MAUI) ---
 ServiceLocator ..> JobManagementService : creates
@@ -854,8 +916,12 @@ ServiceLocator ..> BackupStrategyFactory : creates
 ServiceLocator ..> JsonStateManager : creates
 ServiceLocator ..> DailyLogsService : creates
 
-MauiProgram ..> ServiceLocator : calls Initialize()
-MauiProgram ..> MainPage : registers
+MauiProgram ..> App : configures MAUI for
+
+' --- Presentation (MAUI): App → Composition ---
+App ..> ServiceLocator : calls Initialize()
+App ..> MainViewModel : creates
+App ..> MainPage : creates
 
 
 ' ========================================================
@@ -863,7 +929,9 @@ MauiProgram ..> MainPage : registers
 ' ========================================================
 
 note right of BackupJob
-  **Aggregate Root**: protects business invariants only.
+  **Aggregate Root**: uses public properties
+  (C# convention) with Validate() protecting
+  business invariants.
   Validate() throws InvalidBackupJobException if:
   - name is empty
   - source or target path is empty
@@ -872,7 +940,7 @@ note right of BackupJob
   is handled by IPathAdapter (infrastructure concern).
   IsFileModifiedSinceLastFull() encapsulates the
   differential backup business rule using
-  the entity's own lastFullBackupDate state.
+  the entity's own LastFullBackupDate state.
 end note
 
 note bottom of IBackupStrategy
@@ -884,8 +952,9 @@ note bottom of IBackupStrategy
 end note
 
 note bottom of FileDescriptor
-  **Immutable Value Object**.
-  Equality defined by Path + Size + LastModified.
+  **Immutable Value Object** (C# record).
+  Equality auto-generated by record type
+  based on Path + Size + LastModified.
   No identity — two descriptors with same
   values are considered equal.
 end note
