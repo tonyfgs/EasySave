@@ -1,5 +1,9 @@
 # 🛡️ EasySave - Solution de Sauvegarde ProSoft
 
+[![CI](https://github.com/tonyfgs/EasySave/actions/workflows/ci.yml/badge.svg)](https://github.com/tonyfgs/EasySave/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tonyfgs/EasySave?include_prereleases&sort=semver)](https://github.com/tonyfgs/EasySave/releases)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/TheD57/ea906fd2258106e891f885e431fea712/raw/coverage-badge.json)
+
 ![C#](https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)

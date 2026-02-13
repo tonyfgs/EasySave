@@ -32,6 +32,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleTest", "Test\Console
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GUI", "GUI\GUI.csproj", "{84B1814C-E246-4861-B107-44158325730E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoSoft", "CryptoSoft\CryptoSoft.csproj", "{661C8807-4693-4759-BBC8-136F441FDB54}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -82,10 +84,10 @@ Global
 		{AAD8559B-AF90-439D-96EF-0E2F6780E978}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AAD8559B-AF90-439D-96EF-0E2F6780E978}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AAD8559B-AF90-439D-96EF-0E2F6780E978}.Release|Any CPU.Build.0 = Release|Any CPU
-		{84B1814C-E246-4861-B107-44158325730E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{84B1814C-E246-4861-B107-44158325730E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{84B1814C-E246-4861-B107-44158325730E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{84B1814C-E246-4861-B107-44158325730E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{661C8807-4693-4759-BBC8-136F441FDB54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{661C8807-4693-4759-BBC8-136F441FDB54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{661C8807-4693-4759-BBC8-136F441FDB54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{661C8807-4693-4759-BBC8-136F441FDB54}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{FE9500ED-538A-4684-8399-7F5A279D03D1} = {BC03637D-25F2-45DF-994D-A2B98BDBBEDE}
