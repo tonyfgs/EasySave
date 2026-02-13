@@ -1,0 +1,19 @@
+{
+  "solution": {
+    "path": "EasySave.sln",
+    "projects": [
+      "Console/Console.csproj",
+      "Logger/Logger.csproj",
+      "Model/Model.csproj",
+      "Shared/Shared.csproj",
+      "Application/Application.csproj",
+      "Infrastructure/Infrastructure.csproj",
+      "CryptoSoft/CryptoSoft.csproj",
+      "Test/ModelTest/ModelTest.csproj",
+      "Test/ApplicationTest/ApplicationTest.csproj",
+      "Test/LoggerTest/LoggerTest.csproj",
+      "Test/InfrastructureTest/InfrastructureTest.csproj",
+      "Test/ConsoleTest/ConsoleTest.csproj"
+    ]
+  }
+}
