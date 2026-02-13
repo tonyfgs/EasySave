@@ -93,12 +93,16 @@ public class Program
         var input = args[0];
         List<int> jobIds;
 
-        if (input.Contains('-'))
-            jobIds = inputParser.ParseJobRange(input);
-        else if (input.Contains(';'))
-            jobIds = inputParser.ParseJobList(input);
-        else
-            jobIds = new List<int> { int.Parse(input) };
+        try
+        {
+            jobIds = inputParser.ParseInput(input);
+        }
+        catch (FormatException ex)
+        {
+            output.WriteLine($"Error: {ex.Message}");
+            output.WriteLine("Usage: EasySave <job-id | start-end | id1;id2;...>");
+            return;
+        }
 
         var executeCommand = new ExecuteJobCommand(executionService, output);
         var stringIds = jobIds.Select(id => id.ToString()).ToList();

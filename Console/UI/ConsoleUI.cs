@@ -137,15 +137,17 @@ public class ConsoleUI
         if (input == "*")
             return new List<string> { "*" };
 
-        List<int> jobIds;
-        if (input.Contains('-'))
-            jobIds = _inputParser.ParseJobRange(input);
-        else if (input.Contains(';'))
-            jobIds = _inputParser.ParseJobList(input);
-        else
-            jobIds = new List<int> { int.Parse(input) };
-
-        return jobIds.Select(id => id.ToString()).ToList();
+        try
+        {
+            var jobIds = _inputParser.ParseInput(input);
+            return jobIds.Select(id => id.ToString()).ToList();
+        }
+        catch (FormatException)
+        {
+            _output.Write(_languageManager.GetString("error.generic"));
+            _output.WriteLine($"Invalid input: '{input}'. Expected a job ID (e.g., 1), a range (e.g., 1-3), or a list (e.g., 1;3).");
+            return new List<string>();
+        }
     }
 
     private List<string> GatherLanguageArgs()

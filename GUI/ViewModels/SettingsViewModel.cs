@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Application.Services;
 using GUI.Helpers;
 using GUI.Services;
 using Infrastructure;
@@ -9,58 +11,187 @@ namespace GUI.ViewModels;
 public class SettingsViewModel : ObservableObject
 {
     private readonly AppConfiguration _appConfig;
-    private LogFormat _currentFormat;
-    public LocalizationService Localization { get; }
+    private readonly LanguageApplicationService _languageService;
+    private readonly LocalizationService _localization;
 
-    public ICommand SelectJsonCommand { get; }
-    public ICommand SelectXmlCommand { get; }
+    private Language _selectedLanguage;
+    private LogFormat _selectedLogFormat;
+    private string _encryptionKey = string.Empty;
+    private bool _detectionEnabled;
 
-    public string JsonButtonColor => _currentFormat == LogFormat.JSON ? "#4CAF50" : "#9E9E9E";
-    public string XmlButtonColor => _currentFormat == LogFormat.XML ? "#4CAF50" : "#9E9E9E";
-
-    public string CurrentSelectionText
+    public Language SelectedLanguage
     {
-        get
+        get => _selectedLanguage;
+        set
         {
-            var format = _currentFormat == LogFormat.JSON ? "JSON" : "XML";
-            var desc = _currentFormat == LogFormat.JSON
-                ? Localization.JsonDescription
-                : Localization.XmlDescription;
-            return $"✓ {format} - {desc}";
+            if (SetProperty(ref _selectedLanguage, value))
+            {
+                // Apply language change immediately
+                _appConfig.SetLanguage(value);
+                _appConfig.Save();
+                _languageService.ChangeLanguage(value);
+                // Refresh all UI translations
+                _localization.RefreshTranslations();
+            }
         }
     }
+
+    public LogFormat SelectedLogFormat
+    {
+        get => _selectedLogFormat;
+        set => SetProperty(ref _selectedLogFormat, value);
+    }
+
+    public string EncryptionKey
+    {
+        get => _encryptionKey;
+        set => SetProperty(ref _encryptionKey, value);
+    }
+
+    public bool DetectionEnabled
+    {
+        get => _detectionEnabled;
+        set => SetProperty(ref _detectionEnabled, value);
+    }
+
+    public LocalizationService Localization => _localization;
+
+    // Chip input collections
+    public ObservableCollection<string> SelectedExtensions { get; } = new();
+    public ObservableCollection<string> SelectedBusinessSoftware { get; } = new();
+
+    public List<string> AvailableExtensions { get; } = new()
+    {
+        ".txt", ".pdf", ".docx", ".xlsx", ".pptx", ".csv",
+        ".html", ".xml", ".json", ".zip", ".rar", ".7z",
+        ".png", ".jpg", ".mp4"
+    };
+
+    public List<string> AvailableBusinessSoftware { get; } = new()
+    {
+        "Calculator", "Notepad", "Word", "Excel", "PowerPoint",
+        "Outlook", "Teams", "Slack", "Chrome", "Firefox"
+    };
+
+    // Button colors for language
+    public string EnglishButtonColor => _selectedLanguage == Language.EN ? "#4CAF50" : "#9E9E9E";
+    public string FrenchButtonColor => _selectedLanguage == Language.FR ? "#4CAF50" : "#9E9E9E";
+
+    // Button colors for log format
+    public string JsonButtonColor => _selectedLogFormat == LogFormat.JSON ? "#4CAF50" : "#9E9E9E";
+    public string XmlButtonColor => _selectedLogFormat == LogFormat.XML ? "#4CAF50" : "#9E9E9E";
+
+    public string CurrentFormatText => $"✓ {_selectedLogFormat} - {(_selectedLogFormat == LogFormat.JSON ? "JavaScript Object Notation" : "eXtensible Markup Language")}";
+
+    public ICommand SelectEnglishCommand { get; }
+    public ICommand SelectFrenchCommand { get; }
+    public ICommand SelectJsonCommand { get; }
+    public ICommand SelectXmlCommand { get; }
+    public ICommand LoadSettingsCommand { get; }
+    public ICommand SaveSettingsCommand { get; }
 
     public SettingsViewModel()
     {
         _appConfig = ServiceLocator.AppConfiguration;
-        Localization = ServiceLocator.LocalizationService;
+        _languageService = ServiceLocator.LanguageApplicationService;
+        _localization = ServiceLocator.LocalizationService;
 
-        _currentFormat = _appConfig.GetLogFormat();
-
+        SelectEnglishCommand = new RelayCommand(SelectEnglish);
+        SelectFrenchCommand = new RelayCommand(SelectFrench);
         SelectJsonCommand = new RelayCommand(SelectJson);
         SelectXmlCommand = new RelayCommand(SelectXml);
+        LoadSettingsCommand = new RelayCommand(LoadSettings);
+        SaveSettingsCommand = new RelayCommand(SaveSettings);
+
+        LoadSettings();
+    }
+
+    private void SelectEnglish()
+    {
+        SelectedLanguage = Language.EN;
+        UpdateLanguageButtons();
+    }
+
+    private void SelectFrench()
+    {
+        SelectedLanguage = Language.FR;
+        UpdateLanguageButtons();
     }
 
     private void SelectJson()
     {
-        _currentFormat = LogFormat.JSON;
+        SelectedLogFormat = LogFormat.JSON;
         _appConfig.SetLogFormat(LogFormat.JSON);
         _appConfig.Save();
-        UpdateButtonColors();
+        UpdateLogFormatButtons();
     }
 
     private void SelectXml()
     {
-        _currentFormat = LogFormat.XML;
+        SelectedLogFormat = LogFormat.XML;
         _appConfig.SetLogFormat(LogFormat.XML);
         _appConfig.Save();
-        UpdateButtonColors();
+        UpdateLogFormatButtons();
     }
 
-    private void UpdateButtonColors()
+    private void UpdateLanguageButtons()
+    {
+        OnPropertyChanged(nameof(EnglishButtonColor));
+        OnPropertyChanged(nameof(FrenchButtonColor));
+    }
+
+    private void UpdateLogFormatButtons()
     {
         OnPropertyChanged(nameof(JsonButtonColor));
         OnPropertyChanged(nameof(XmlButtonColor));
-        OnPropertyChanged(nameof(CurrentSelectionText));
+        OnPropertyChanged(nameof(CurrentFormatText));
+    }
+
+    private void LoadSettings()
+    {
+        _selectedLanguage = _appConfig.GetLanguage();
+        _selectedLogFormat = _appConfig.GetLogFormat();
+
+        // Load extensions into ObservableCollection
+        SelectedExtensions.Clear();
+        foreach (var ext in _appConfig.GetEncryptedExtensions())
+            SelectedExtensions.Add(ext);
+
+        EncryptionKey = _appConfig.GetEncryptionKey();
+
+        // Load business software name into ObservableCollection
+        SelectedBusinessSoftware.Clear();
+        var softwareName = _appConfig.GetBusinessSoftwareName();
+        if (!string.IsNullOrWhiteSpace(softwareName))
+            SelectedBusinessSoftware.Add(softwareName);
+
+        DetectionEnabled = _appConfig.IsDetectionEnabled();
+
+        // Update UI
+        UpdateLanguageButtons();
+        UpdateLogFormatButtons();
+    }
+
+    private void SaveSettings()
+    {
+        // Save language
+        _appConfig.SetLanguage(SelectedLanguage);
+
+        // Save log format
+        _appConfig.SetLogFormat(SelectedLogFormat);
+
+        // Save encrypted extensions from ObservableCollection
+        _appConfig.SetEncryptedExtensions(SelectedExtensions.ToList());
+
+        // Save encryption key
+        _appConfig.SetEncryptionKey(EncryptionKey);
+
+        // Save business software settings (single name from collection)
+        var softwareName = SelectedBusinessSoftware.FirstOrDefault() ?? string.Empty;
+        _appConfig.SetBusinessSoftwareName(softwareName);
+        _appConfig.SetDetectionEnabled(DetectionEnabled);
+
+        // Persist to file
+        _appConfig.Save();
     }
 }

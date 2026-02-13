@@ -174,18 +174,18 @@ public class CreateJobViewModel : ObservableObject
     /// </summary>
     private static async Task<string?> FolderPicker()
     {
-        await Task.CompletedTask;
         try
         {
-            // var result = await CommunityToolkit.Maui.Storage.FolderPicker.Default.PickAsync();
-            // if (result.IsSuccessful)
-            //     return result.Folder.Path;
-            Console.WriteLine("YO");
+            var result = await CommunityToolkit.Maui.Storage.FolderPicker.Default.PickAsync(CancellationToken.None);
+            if (result.IsSuccessful)
+                return result.Folder.Path;
         }
-        catch
+        catch (Exception ex)
         {
-            // FolderPicker may not be available on all platforms.
-            // User can type the path manually.
+            if (App.Current?.MainPage is not null)
+                await App.Current.MainPage.DisplayAlert("Error",
+                    $"Folder picker is not available on this platform. Please type the path manually.\n\n{ex.Message}",
+                    "OK");
         }
         return null;
     }
