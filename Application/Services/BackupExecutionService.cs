@@ -58,7 +58,7 @@ public class BackupExecutionService
                         new List<string> { $"Business software detected ({status})" },
                         TimeSpan.Zero);
                     results.Add(new JobExecutionResult(jobId, failResult));
-                    continue;
+                    break;
                 }
             }
 
