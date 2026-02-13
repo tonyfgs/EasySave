@@ -56,10 +56,10 @@ public class Program
         var output = Console.Out;
         var commands = new Dictionary<string, ICommand>
         {
-            ["1"] = new CreateJobCommand(jobService, output),
-            ["2"] = new ListJobsCommand(jobService, output),
-            ["3"] = new ModifyJobCommand(jobService, output),
-            ["4"] = new DeleteJobCommand(jobService, output),
+            ["1"] = new CreateJobCommand(jobService, languageManager, output),
+            ["2"] = new ListJobsCommand(jobService, languageManager, output),
+            ["3"] = new ModifyJobCommand(jobService, languageManager, output),
+            ["4"] = new DeleteJobCommand(jobService, languageManager, output),
             ["5"] = new ExecuteJobCommand(executionService, output),
             ["6"] = new ChangeLanguageCommand(languageService, languageManager, output),
             ["7"] = new ExitCommand(),

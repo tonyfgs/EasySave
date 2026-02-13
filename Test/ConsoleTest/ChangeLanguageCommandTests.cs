@@ -66,7 +66,7 @@ public class ChangeLanguageCommandTests
 
         command.Execute(new List<string> { "FR" });
 
-        Assert.Equal("Langue changee avec succes.", output.ToString().Trim());
+        Assert.Equal("Langue changee en Francais.", output.ToString().Trim());
     }
 
     [Fact]
@@ -78,6 +78,6 @@ public class ChangeLanguageCommandTests
 
         command.Execute(new List<string> { "EN" });
 
-        Assert.Equal("Language changed successfully.", output.ToString().Trim());
+        Assert.Equal("Language changed to English.", output.ToString().Trim());
     }
 }

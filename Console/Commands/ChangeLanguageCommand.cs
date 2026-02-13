@@ -23,7 +23,8 @@ public class ChangeLanguageCommand : ICommand
         {
             var language = Enum.Parse<Language>(args[0], ignoreCase: true);
             _languageService.ChangeLanguage(language);
-            _output.WriteLine(_languageManager.GetString("success.language_changed"));
+            var languageDisplayName = _languageManager.GetString($"language.{language.ToString().ToLower()}");
+            _output.WriteLine(_languageManager.GetFormattedString("success.language_changed", languageDisplayName));
             return CommandResult.Ok();
         }
         catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException

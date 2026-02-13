@@ -40,8 +40,8 @@ public class ConsoleIntegrationTests
         var output = new StringWriter();
         var commands = new Dictionary<string, ICommand>
         {
-            ["1"] = new CreateJobCommand(jobService, output),
-            ["2"] = new ListJobsCommand(jobService, output),
+            ["1"] = new CreateJobCommand(jobService, languageManager, output),
+            ["2"] = new ListJobsCommand(jobService, languageManager, output),
             ["7"] = new ExitCommand()
         };
 
@@ -71,7 +71,7 @@ public class ConsoleIntegrationTests
         var output = new StringWriter();
         var commands = new Dictionary<string, ICommand>
         {
-            ["4"] = new DeleteJobCommand(jobService, output),
+            ["4"] = new DeleteJobCommand(jobService, languageManager, output),
             ["7"] = new ExitCommand()
         };
 
@@ -101,7 +101,7 @@ public class ConsoleIntegrationTests
         var output = new StringWriter();
         var commands = new Dictionary<string, ICommand>
         {
-            ["3"] = new ModifyJobCommand(jobService, output),
+            ["3"] = new ModifyJobCommand(jobService, languageManager, output),
             ["7"] = new ExitCommand()
         };
 

@@ -1,4 +1,5 @@
 using Application.Services;
+using EasySave.UI;
 using Model;
 
 namespace EasySave.Commands;
@@ -6,11 +7,13 @@ namespace EasySave.Commands;
 public class ModifyJobCommand : ICommand
 {
     private readonly JobManagementService _jobService;
+    private readonly LanguageManager _languageManager;
     private readonly TextWriter _output;
 
-    public ModifyJobCommand(JobManagementService jobService, TextWriter? output = null)
+    public ModifyJobCommand(JobManagementService jobService, LanguageManager languageManager, TextWriter? output = null)
     {
         _jobService = jobService;
+        _languageManager = languageManager;
         _output = output ?? Console.Out;
     }
 
@@ -25,7 +28,7 @@ public class ModifyJobCommand : ICommand
             var type = Enum.Parse<BackupType>(args[4], ignoreCase: true);
 
             _jobService.ModifyJob(id, name, source, target, type);
-            _output.WriteLine($"Job {id} modified.");
+            _output.WriteLine(_languageManager.GetFormattedString("success.job_modified", id));
             return CommandResult.Ok();
         }
         catch (Exception ex) when (ex is DomainException or FormatException
