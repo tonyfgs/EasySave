@@ -19,4 +19,25 @@ public class InputParser
             .Select(s => int.Parse(s.Trim()))
             .ToList();
     }
+
+    public List<int> ParseInput(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            throw new FormatException(
+                $"Invalid input: '{input}'. Expected a job ID (e.g., 1), a range (e.g., 1-3), or a list (e.g., 1;3).");
+
+        try
+        {
+            if (input.Contains(';'))
+                return ParseJobList(input);
+            if (input.Contains('-'))
+                return ParseJobRange(input);
+            return new List<int> { int.Parse(input.Trim()) };
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException)
+        {
+            throw new FormatException(
+                $"Invalid input: '{input}'. Expected a job ID (e.g., 1), a range (e.g., 1-3), or a list (e.g., 1;3).");
+        }
+    }
 }
