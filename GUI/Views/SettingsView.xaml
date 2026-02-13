@@ -14,20 +14,47 @@
                    TextColor="#333333"
                    Margin="0,0,0,10"/>
 
+            <!-- Language Section -->
+            <Border Stroke="#E0E0E0" StrokeThickness="1"
+                    Padding="20" BackgroundColor="White">
+                <VerticalStackLayout Spacing="15">
+                    <Label Text="{Binding Localization.LanguageLabel}"
+                           FontSize="18" FontAttributes="Bold"
+                           TextColor="#1976D2"/>
+
+                    <HorizontalStackLayout Spacing="10">
+                        
+                        <Button Text="FR"
+                                Command="{Binding SelectFrenchCommand}"
+                                BackgroundColor="{Binding FrenchButtonColor}"
+                                TextColor="White"
+                                WidthRequest="100"
+                                HeightRequest="45"
+                                FontSize="16"
+                                FontAttributes="Bold"/>
+                        
+                        <Button Text="EN"
+                                Command="{Binding SelectEnglishCommand}"
+                                BackgroundColor="{Binding EnglishButtonColor}"
+                                TextColor="White"
+                                WidthRequest="100"
+                                HeightRequest="45"
+                                FontSize="16"
+                                FontAttributes="Bold"/>
+
+                    </HorizontalStackLayout>
+                    
+                </VerticalStackLayout>
+            </Border>
+
             <!-- Log Format Section -->
             <Border Stroke="#E0E0E0" StrokeThickness="1"
                     Padding="20" BackgroundColor="White">
                 <VerticalStackLayout Spacing="15">
-
                     <Label Text="{Binding Localization.LogFormatLabel}"
                            FontSize="18" FontAttributes="Bold"
                            TextColor="#1976D2"/>
 
-                    <Label Text="{Binding Localization.LogFormatDescription}"
-                           FontSize="14" TextColor="#666666"
-                           Margin="0,0,0,10"/>
-
-                    <!-- Format Selection Buttons -->
                     <HorizontalStackLayout Spacing="10">
                         <Button Text="JSON"
                                 Command="{Binding SelectJsonCommand}"
@@ -48,24 +75,89 @@
                                 FontAttributes="Bold"/>
                     </HorizontalStackLayout>
 
-                    <!-- Current Selection Info -->
                     <Border Stroke="#4CAF50" StrokeThickness="2"
                             Padding="12" BackgroundColor="#E8F5E9">
-                        <Label Text="{Binding CurrentSelectionText}"
+                        <Label Text="{Binding CurrentFormatText}"
                                FontSize="14" TextColor="#2E7D32"
                                FontAttributes="Bold"/>
                     </Border>
-
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Encryption Section -->
+            <Border Stroke="#E0E0E0" StrokeThickness="1"
+                    Padding="20" BackgroundColor="White">
+                <VerticalStackLayout Spacing="15">
+                    <Label Text="{Binding Localization.EncryptionTitle}"
+                           FontSize="18" FontAttributes="Bold"
+                           TextColor="#1976D2"/>
+
+                    <!-- Encrypted Extensions -->
+                    <Label Text="{Binding Localization.EncryptedExtensionsLabel}"
+                           FontSize="14" FontAttributes="Bold"/>
+                    <Entry Text="{Binding EncryptedExtensions}"
+                           Placeholder="{Binding Localization.EncryptedExtensionsPlaceholder}"
+                           FontSize="14"/>
+                    <Label Text="{Binding Localization.EncryptedExtensionsHelp}"
+                           FontSize="12" TextColor="#666666" FontAttributes="Italic"/>
+
+                    <!-- Encryption Key -->
+                    <Label Text="{Binding Localization.EncryptionKeyLabel}"
+                           FontSize="14" FontAttributes="Bold"
+                           Margin="0,10,0,0"/>
+                    <Entry Text="{Binding EncryptionKey}"
+                           Placeholder="{Binding Localization.EncryptionKeyPlaceholder}"
+                           IsPassword="True"
+                           FontSize="14"/>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Business Software Detection Section -->
+            <Border Stroke="#E0E0E0" StrokeThickness="1"
+                    Padding="20" BackgroundColor="White">
+                <VerticalStackLayout Spacing="15">
+                    <Label Text="{Binding Localization.BusinessSoftwareTitle}"
+                           FontSize="18" FontAttributes="Bold"
+                           TextColor="#1976D2"/>
+
+                    <!-- Detection Enabled -->
+                    <HorizontalStackLayout Spacing="10">
+                        <CheckBox IsChecked="{Binding DetectionEnabled}"/>
+                        <Label Text="{Binding Localization.EnableDetectionLabel}"
+                               FontSize="14"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Software Name -->
+                    <Label Text="{Binding Localization.BusinessSoftwareNameLabel}"
+                           FontSize="14" FontAttributes="Bold"
+                           Margin="0,10,0,0"/>
+                    <Entry Text="{Binding BusinessSoftwareName}"
+                           Placeholder="{Binding Localization.BusinessSoftwareNamePlaceholder}"
+                           FontSize="14"
+                           IsEnabled="{Binding DetectionEnabled}"/>
+                    <Label Text="{Binding Localization.BusinessSoftwareHelp}"
+                           FontSize="12" TextColor="#666666" FontAttributes="Italic"/>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Save Button -->
+            <Button Text="{Binding Localization.SaveButton}"
+                    Command="{Binding SaveSettingsCommand}"
+                    BackgroundColor="#4CAF50"
+                    TextColor="White"
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    HeightRequest="50"
+                    Margin="0,10,0,20"/>
+
             <!-- Info Message -->
-            <Border Stroke="#FFC107" StrokeThickness="1"
-                    Padding="15" BackgroundColor="#FFF9E6">
+            <Border Stroke="#2196F3" StrokeThickness="1"
+                    Padding="15" BackgroundColor="#E3F2FD">
                 <HorizontalStackLayout Spacing="10">
                     <Label Text="ℹ️" FontSize="20" VerticalOptions="Center"/>
                     <Label Text="{Binding Localization.SettingsInfo}"
-                           FontSize="14" TextColor="#F57C00"
+                           FontSize="14" TextColor="#1976D2"
                            VerticalOptions="Center"
                            LineBreakMode="WordWrap"
                            MaximumWidthRequest="600"/>

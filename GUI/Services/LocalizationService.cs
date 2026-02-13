@@ -58,10 +58,23 @@ public class LocalizationService : INotifyPropertyChanged
 
     // Settings View
     public string SettingsTitle => GetString("settings.title");
+    public string LanguageLabel => GetString("settings.language_label");
+    public string SelectLanguage => GetString("settings.select_language");
+    public string LanguageInfo => GetString("settings.language_info");
     public string LogFormatLabel => GetString("settings.log_format");
-    public string LogFormatDescription => GetString("settings.log_format_desc");
-    public string JsonDescription => GetString("settings.json_desc");
-    public string XmlDescription => GetString("settings.xml_desc");
+    public string SelectLogFormat => GetString("settings.select_log_format");
+    public string EncryptionTitle => GetString("settings.encryption_title");
+    public string EncryptedExtensionsLabel => GetString("settings.encrypted_extensions_label");
+    public string EncryptedExtensionsPlaceholder => GetString("settings.encrypted_extensions_placeholder");
+    public string EncryptedExtensionsHelp => GetString("settings.encrypted_extensions_help");
+    public string EncryptionKeyLabel => GetString("settings.encryption_key_label");
+    public string EncryptionKeyPlaceholder => GetString("settings.encryption_key_placeholder");
+    public string BusinessSoftwareTitle => GetString("settings.business_software_title");
+    public string EnableDetectionLabel => GetString("settings.enable_detection_label");
+    public string BusinessSoftwareNameLabel => GetString("settings.business_software_name_label");
+    public string BusinessSoftwareNamePlaceholder => GetString("settings.business_software_name_placeholder");
+    public string BusinessSoftwareHelp => GetString("settings.business_software_help");
+    public string SaveButton => GetString("settings.save_button");
     public string SettingsInfo => GetString("settings.info");
 
     // Common
@@ -78,6 +91,12 @@ public class LocalizationService : INotifyPropertyChanged
         _languageService.ChangeLanguage(newLang);
 
         // Notify all properties changed
+        OnPropertyChanged(string.Empty);
+    }
+
+    public void RefreshTranslations()
+    {
+        // Notify all properties changed without changing the language
         OnPropertyChanged(string.Empty);
     }
 
@@ -130,11 +149,24 @@ public class LocalizationService : INotifyPropertyChanged
 
             // Settings
             ["settings.title"] = new() { [Language.EN] = "Settings", [Language.FR] = "Paramètres" },
+            ["settings.language_label"] = new() { [Language.EN] = "Language", [Language.FR] = "Langue" },
+            ["settings.select_language"] = new() { [Language.EN] = "Select language", [Language.FR] = "Sélectionnez la langue" },
+            ["settings.language_info"] = new() { [Language.EN] = "Language changes apply immediately", [Language.FR] = "Les changements de langue s'appliquent immédiatement" },
             ["settings.log_format"] = new() { [Language.EN] = "Log Format", [Language.FR] = "Format des Logs" },
-            ["settings.log_format_desc"] = new() { [Language.EN] = "Choose the format for backup transfer logs", [Language.FR] = "Choisissez le format pour les logs de transfert de sauvegarde" },
-            ["settings.json_desc"] = new() { [Language.EN] = "JSON format (default)", [Language.FR] = "Format JSON (par défaut)" },
-            ["settings.xml_desc"] = new() { [Language.EN] = "XML format", [Language.FR] = "Format XML" },
-            ["settings.info"] = new() { [Language.EN] = "Logs are automatically saved when backups are executed. Changes take effect immediately.", [Language.FR] = "Les logs sont automatiquement sauvegardés lors de l'exécution des sauvegardes. Les modifications prennent effet immédiatement." },
+            ["settings.select_log_format"] = new() { [Language.EN] = "Select log format", [Language.FR] = "Sélectionnez le format de log" },
+            ["settings.encryption_title"] = new() { [Language.EN] = "Encryption", [Language.FR] = "Chiffrement" },
+            ["settings.encrypted_extensions_label"] = new() { [Language.EN] = "Encrypted File Extensions", [Language.FR] = "Extensions de Fichiers Chiffrées" },
+            ["settings.encrypted_extensions_placeholder"] = new() { [Language.EN] = "e.g., .txt, .docx, .pdf", [Language.FR] = "ex: .txt, .docx, .pdf" },
+            ["settings.encrypted_extensions_help"] = new() { [Language.EN] = "Comma-separated list of file extensions to encrypt", [Language.FR] = "Liste d'extensions de fichiers à chiffrer, séparées par des virgules" },
+            ["settings.encryption_key_label"] = new() { [Language.EN] = "Encryption Key", [Language.FR] = "Clé de Chiffrement" },
+            ["settings.encryption_key_placeholder"] = new() { [Language.EN] = "Enter encryption key", [Language.FR] = "Entrez la clé de chiffrement" },
+            ["settings.business_software_title"] = new() { [Language.EN] = "Business Software Detection", [Language.FR] = "Détection de Logiciel Métier" },
+            ["settings.enable_detection_label"] = new() { [Language.EN] = "Enable business software detection", [Language.FR] = "Activer la détection de logiciel métier" },
+            ["settings.business_software_name_label"] = new() { [Language.EN] = "Business Software Name", [Language.FR] = "Nom du Logiciel Métier" },
+            ["settings.business_software_name_placeholder"] = new() { [Language.EN] = "e.g., calculator, notepad", [Language.FR] = "ex: calculatrice, bloc-notes" },
+            ["settings.business_software_help"] = new() { [Language.EN] = "Backup will be paused while this software is running", [Language.FR] = "La sauvegarde sera mise en pause pendant l'exécution de ce logiciel" },
+            ["settings.save_button"] = new() { [Language.EN] = "Save Settings", [Language.FR] = "Enregistrer les Paramètres" },
+            ["settings.info"] = new() { [Language.EN] = "Settings are saved automatically. Changes take effect immediately.", [Language.FR] = "Les paramètres sont sauvegardés automatiquement. Les modifications prennent effet immédiatement." },
 
             // Common
             ["common.edit"] = new() { [Language.EN] = "Edit", [Language.FR] = "Modifier" },
