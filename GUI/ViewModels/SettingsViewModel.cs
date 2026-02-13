@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Application.Services;
 using GUI.Helpers;
@@ -15,9 +16,7 @@ public class SettingsViewModel : ObservableObject
 
     private Language _selectedLanguage;
     private LogFormat _selectedLogFormat;
-    private string _encryptedExtensions = string.Empty;
     private string _encryptionKey = string.Empty;
-    private string _businessSoftwareName = string.Empty;
     private bool _detectionEnabled;
 
     public Language SelectedLanguage
@@ -43,22 +42,10 @@ public class SettingsViewModel : ObservableObject
         set => SetProperty(ref _selectedLogFormat, value);
     }
 
-    public string EncryptedExtensions
-    {
-        get => _encryptedExtensions;
-        set => SetProperty(ref _encryptedExtensions, value);
-    }
-
     public string EncryptionKey
     {
         get => _encryptionKey;
         set => SetProperty(ref _encryptionKey, value);
-    }
-
-    public string BusinessSoftwareName
-    {
-        get => _businessSoftwareName;
-        set => SetProperty(ref _businessSoftwareName, value);
     }
 
     public bool DetectionEnabled
@@ -68,6 +55,23 @@ public class SettingsViewModel : ObservableObject
     }
 
     public LocalizationService Localization => _localization;
+
+    // Chip input collections
+    public ObservableCollection<string> SelectedExtensions { get; } = new();
+    public ObservableCollection<string> SelectedBusinessSoftware { get; } = new();
+
+    public List<string> AvailableExtensions { get; } = new()
+    {
+        ".txt", ".pdf", ".docx", ".xlsx", ".pptx", ".csv",
+        ".html", ".xml", ".json", ".zip", ".rar", ".7z",
+        ".png", ".jpg", ".mp4"
+    };
+
+    public List<string> AvailableBusinessSoftware { get; } = new()
+    {
+        "Calculator", "Notepad", "Word", "Excel", "PowerPoint",
+        "Outlook", "Teams", "Slack", "Chrome", "Firefox"
+    };
 
     // Button colors for language
     public string EnglishButtonColor => _selectedLanguage == Language.EN ? "#4CAF50" : "#9E9E9E";
@@ -148,11 +152,19 @@ public class SettingsViewModel : ObservableObject
         _selectedLanguage = _appConfig.GetLanguage();
         _selectedLogFormat = _appConfig.GetLogFormat();
 
-        var extensions = _appConfig.GetEncryptedExtensions();
-        EncryptedExtensions = string.Join(", ", extensions);
+        // Load extensions into ObservableCollection
+        SelectedExtensions.Clear();
+        foreach (var ext in _appConfig.GetEncryptedExtensions())
+            SelectedExtensions.Add(ext);
 
         EncryptionKey = _appConfig.GetEncryptionKey();
-        BusinessSoftwareName = _appConfig.GetBusinessSoftwareName();
+
+        // Load business software name into ObservableCollection
+        SelectedBusinessSoftware.Clear();
+        var softwareName = _appConfig.GetBusinessSoftwareName();
+        if (!string.IsNullOrWhiteSpace(softwareName))
+            SelectedBusinessSoftware.Add(softwareName);
+
         DetectionEnabled = _appConfig.IsDetectionEnabled();
 
         // Update UI
@@ -168,19 +180,15 @@ public class SettingsViewModel : ObservableObject
         // Save log format
         _appConfig.SetLogFormat(SelectedLogFormat);
 
-        // Save encrypted extensions
-        var extensions = EncryptedExtensions
-            .Split(',')
-            .Select(e => e.Trim())
-            .Where(e => !string.IsNullOrWhiteSpace(e))
-            .ToList();
-        _appConfig.SetEncryptedExtensions(extensions);
+        // Save encrypted extensions from ObservableCollection
+        _appConfig.SetEncryptedExtensions(SelectedExtensions.ToList());
 
         // Save encryption key
         _appConfig.SetEncryptionKey(EncryptionKey);
 
-        // Save business software settings
-        _appConfig.SetBusinessSoftwareName(BusinessSoftwareName);
+        // Save business software settings (single name from collection)
+        var softwareName = SelectedBusinessSoftware.FirstOrDefault() ?? string.Empty;
+        _appConfig.SetBusinessSoftwareName(softwareName);
         _appConfig.SetDetectionEnabled(DetectionEnabled);
 
         // Persist to file

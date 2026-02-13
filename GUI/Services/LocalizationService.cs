@@ -74,6 +74,8 @@ public class LocalizationService : INotifyPropertyChanged
     public string BusinessSoftwareNameLabel => GetString("settings.business_software_name_label");
     public string BusinessSoftwareNamePlaceholder => GetString("settings.business_software_name_placeholder");
     public string BusinessSoftwareHelp => GetString("settings.business_software_help");
+    public string ExtensionsSearchPlaceholder => GetString("settings.extensions_search_placeholder");
+    public string SoftwareSearchPlaceholder => GetString("settings.software_search_placeholder");
     public string SaveButton => GetString("settings.save_button");
     public string SettingsInfo => GetString("settings.info");
 
@@ -165,6 +167,8 @@ public class LocalizationService : INotifyPropertyChanged
             ["settings.business_software_name_label"] = new() { [Language.EN] = "Business Software Name", [Language.FR] = "Nom du Logiciel Métier" },
             ["settings.business_software_name_placeholder"] = new() { [Language.EN] = "e.g., calculator, notepad", [Language.FR] = "ex: calculatrice, bloc-notes" },
             ["settings.business_software_help"] = new() { [Language.EN] = "Backup will be paused while this software is running", [Language.FR] = "La sauvegarde sera mise en pause pendant l'exécution de ce logiciel" },
+            ["settings.extensions_search_placeholder"] = new() { [Language.EN] = "Search or add extension...", [Language.FR] = "Rechercher ou ajouter une extension..." },
+            ["settings.software_search_placeholder"] = new() { [Language.EN] = "Search or add software...", [Language.FR] = "Rechercher ou ajouter un logiciel..." },
             ["settings.save_button"] = new() { [Language.EN] = "Save Settings", [Language.FR] = "Enregistrer les Paramètres" },
             ["settings.info"] = new() { [Language.EN] = "Settings are saved automatically. Changes take effect immediately.", [Language.FR] = "Les paramètres sont sauvegardés automatiquement. Les modifications prennent effet immédiatement." },
 
