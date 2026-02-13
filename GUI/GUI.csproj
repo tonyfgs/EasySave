@@ -69,4 +69,14 @@
       <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
     </ItemGroup>
 
+    <!-- Build CryptoSoft and copy to output directory -->
+    <Target Name="BuildCryptoSoft" AfterTargets="Build">
+        <Exec Command="dotnet build &quot;$(MSBuildThisFileDirectory)..\CryptoSoft\CryptoSoft.csproj&quot; -c $(Configuration) --nologo -v q" />
+        <ItemGroup>
+            <CryptoSoftFiles Include="$(MSBuildThisFileDirectory)..\CryptoSoft\bin\$(Configuration)\net8.0\**\*.*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(CryptoSoftFiles)"
+              DestinationFolder="$(OutputPath)CryptoSoft\%(RecursiveDir)" />
+    </Target>
+
 </Project>

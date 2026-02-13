@@ -2,14 +2,16 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Application.DTOs;
 using Application.Events;
+using Application.Ports;
 using Application.Services;
 using GUI.Helpers;
+using GUI.Services;
 using Model;
 
 namespace GUI.ViewModels;
 
 
-public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedEvent>
+public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedEvent>, IEventHandler<BusinessSoftwareDetectedEvent>
 {
     private readonly BackupExecutionService _executionService;
     private readonly JobManagementService _jobManagementService;
@@ -79,7 +81,8 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         _eventBus = ServiceLocator.EventBus;
 
         // Subscribe to real-time progress events
-        _eventBus.Subscribe(this);
+        _eventBus.Subscribe<StateChangedEvent>(this);
+        _eventBus.Subscribe<BusinessSoftwareDetectedEvent>(this);
 
         ExecuteSelectedCommand = new RelayCommand(
             async () => await ExecuteSelectedAsync(),
@@ -230,6 +233,17 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         {
             IsExecuting = false;
         }
+    }
+
+    // Handle business software detection — show clear blocking message
+    public void Handle(BusinessSoftwareDetectedEvent @event)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            StatusMessage = string.Format(
+                ServiceLocator.LocalizationService.BusinessSoftwareBlocked,
+                @event.JobName);
+        });
     }
 
     // Handle real-time progress updates from StateChangedEvent

@@ -81,6 +81,7 @@ public class LocalizationService : INotifyPropertyChanged
     public string BusinessSoftwareNameLabel => GetString("settings.business_software_name_label");
     public string BusinessSoftwareNamePlaceholder => GetString("settings.business_software_name_placeholder");
     public string BusinessSoftwareHelp => GetString("settings.business_software_help");
+    public string BusinessSoftwareBlocked => GetString("execute.business_software_blocked");
     public string ExtensionsSearchPlaceholder => GetString("settings.extensions_search_placeholder");
     public string SoftwareSearchPlaceholder => GetString("settings.software_search_placeholder");
     public string SaveButton => GetString("settings.save_button");
@@ -162,6 +163,7 @@ public class LocalizationService : INotifyPropertyChanged
             ["execute.all"] = new() { [Language.EN] = "Execute All", [Language.FR] = "Tout Exécuter" },
             ["execute.executing"] = new() { [Language.EN] = "Executing backups...", [Language.FR] = "Exécution des sauvegardes..." },
             ["execute.no_jobs"] = new() { [Language.EN] = "No jobs available to execute.", [Language.FR] = "Aucune tâche disponible à exécuter." },
+            ["execute.business_software_blocked"] = new() { [Language.EN] = "Backup blocked: business software '{0}' is running.", [Language.FR] = "Sauvegarde bloquée : le logiciel métier '{0}' est en cours d'exécution." },
 
             // Settings
             ["settings.title"] = new() { [Language.EN] = "Settings", [Language.FR] = "Paramètres" },
