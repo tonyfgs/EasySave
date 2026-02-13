@@ -73,19 +73,6 @@
                 <!-- Spacer -->
                 <BoxView HeightRequest="1" Color="#E0E0E0" Margin="10,15"/>
 
-                <!-- Language Toggle -->
-                <Grid HeightRequest="40" ColumnDefinitions="30,*" Padding="10,0" HorizontalOptions="Fill">
-                    <Grid.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding ToggleLanguageCommand}"/>
-                    </Grid.GestureRecognizers>
-                    <Label Grid.Column="0" Text="🌐" FontSize="13" VerticalOptions="Center"/>
-                    <Label Grid.Column="1" Text="{Binding Localization.LanguageToggleNav}"
-                           TextColor="Gray"
-                           FontSize="13"
-                           VerticalOptions="Center"
-                           HorizontalOptions="Start"/>
-                </Grid>
-
             </VerticalStackLayout>
         </Border>
 
