@@ -61,7 +61,7 @@ public class Program
             ["3"] = new ModifyJobCommand(jobService, output),
             ["4"] = new DeleteJobCommand(jobService, output),
             ["5"] = new ExecuteJobCommand(executionService, output),
-            ["6"] = new ChangeLanguageCommand(languageService, output),
+            ["6"] = new ChangeLanguageCommand(languageService, languageManager, output),
             ["7"] = new ExitCommand(),
         };
 

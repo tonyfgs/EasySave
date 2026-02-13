@@ -133,7 +133,7 @@ public class ConsoleIntegrationTests
         var output = new StringWriter();
         var commands = new Dictionary<string, ICommand>
         {
-            ["6"] = new ChangeLanguageCommand(languageService, output),
+            ["6"] = new ChangeLanguageCommand(languageService, languageManager, output),
             ["7"] = new ExitCommand()
         };
 
