@@ -26,14 +26,14 @@ jobs:
           restore-keys: ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore EasySave.NoGUI.slnf
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build EasySave.NoGUI.slnf --no-restore --configuration Release
 
       - name: Test with coverage
         run: >
-          dotnet test --no-build --configuration Release
+          dotnet test EasySave.NoGUI.slnf --no-build --configuration Release
           --collect:"XPlat Code Coverage"
           --results-directory ./TestResults
           -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
