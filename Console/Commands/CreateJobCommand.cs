@@ -1,5 +1,6 @@
 using Application.Services;
 using EasySave.UI;
+using EasySave.Utilities;
 using Model;
 
 namespace EasySave.Commands;
@@ -24,7 +25,7 @@ public class CreateJobCommand : ICommand
             var name = args[0];
             var source = args[1];
             var target = args[2];
-            var type = Enum.Parse<BackupType>(args[3], ignoreCase: true);
+            var type = BackupTypeParser.Parse(args[3]);
 
             var job = _jobService.CreateJob(name, source, target, type);
             _output.WriteLine(_languageManager.GetFormattedString("success.job_created", job.Name, job.Id));

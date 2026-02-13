@@ -14,4 +14,5 @@ public record StateSnapshot
     public long SizeRemaining { get; init; }
     public string CurrentSourceFile { get; init; } = string.Empty;
     public string CurrentDestFile { get; init; } = string.Empty;
+    public string? BlockReason { get; init; }
 }

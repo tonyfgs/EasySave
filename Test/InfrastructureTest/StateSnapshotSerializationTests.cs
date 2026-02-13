@@ -68,7 +68,7 @@ public class StateSnapshotSerializationTests
     }
 
     [Fact]
-    public void StateSnapshot_SerializedJson_HasExactly10SpecFields()
+    public void StateSnapshot_SerializedJson_HasExactly11SpecFields()
     {
         var snapshot = new StateSnapshot
         {
@@ -88,7 +88,7 @@ public class StateSnapshotSerializationTests
         using var doc = JsonDocument.Parse(json);
         var propertyNames = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
 
-        Assert.Equal(10, propertyNames.Count);
+        Assert.Equal(11, propertyNames.Count);
         Assert.Contains("Name", propertyNames);
         Assert.Contains("Timestamp", propertyNames);
         Assert.Contains("State", propertyNames);
@@ -99,6 +99,7 @@ public class StateSnapshotSerializationTests
         Assert.Contains("SizeRemaining", propertyNames);
         Assert.Contains("CurrentSourceFile", propertyNames);
         Assert.Contains("CurrentDestFile", propertyNames);
+        Assert.Contains("BlockReason", propertyNames);
     }
 
     [Fact]
@@ -115,7 +116,8 @@ public class StateSnapshotSerializationTests
             FilesRemaining = 82,
             SizeRemaining = 288358400,
             CurrentSourceFile = "\\\\PC\\D$\\Photos\\vacances.jpg",
-            CurrentDestFile = "\\\\PC\\E$\\Backup\\vacances.jpg"
+            CurrentDestFile = "\\\\PC\\E$\\Backup\\vacances.jpg",
+            BlockReason = "Business software detected"
         };
 
         var json = JsonSerializer.Serialize(original);
@@ -132,6 +134,29 @@ public class StateSnapshotSerializationTests
         Assert.Equal(original.SizeRemaining, restored.SizeRemaining);
         Assert.Equal(original.CurrentSourceFile, restored.CurrentSourceFile);
         Assert.Equal(original.CurrentDestFile, restored.CurrentDestFile);
+        Assert.Equal(original.BlockReason, restored.BlockReason);
+    }
+
+    [Fact]
+    public void StateSnapshot_DefaultBlockReason_ShouldBeNull()
+    {
+        var snapshot = new StateSnapshot { Name = "Test" };
+        Assert.Null(snapshot.BlockReason);
+    }
+
+    [Fact]
+    public void StateSnapshot_BlockedState_ShouldSerializeWithBlockReason()
+    {
+        var snapshot = new StateSnapshot
+        {
+            Name = "Test",
+            State = JobState.Blocked,
+            BlockReason = "Business software detected: calc.exe"
+        };
+
+        var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
+        Assert.Contains("\"BLOCKED\"", json);
+        Assert.Contains("calc.exe", json);
     }
 
     [Fact]

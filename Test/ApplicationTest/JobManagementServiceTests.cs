@@ -8,21 +8,17 @@ namespace ApplicationTest;
 public class JobManagementServiceTests
 {
     private readonly Mock<IJobRepository> _mockRepo;
-    private readonly BackupDomainService _domainService;
     private readonly JobManagementService _service;
 
     public JobManagementServiceTests()
     {
         _mockRepo = new Mock<IJobRepository>();
-        _domainService = new BackupDomainService();
-        _service = new JobManagementService(_mockRepo.Object, _domainService);
+        _service = new JobManagementService(_mockRepo.Object);
     }
 
     [Fact]
     public void CreateJob_ShouldValidateAndSave()
     {
-        _mockRepo.Setup(r => r.Count()).Returns(0);
-
         var job = _service.CreateJob("TestJob", "/src", "/dst", BackupType.Full);
 
         Assert.Equal("TestJob", job.Name);
@@ -30,19 +26,20 @@ public class JobManagementServiceTests
     }
 
     [Fact]
-    public void CreateJob_AtMaxJobs_ShouldThrow()
+    public void CreateJob_TenJobs_ShouldAllSucceed()
     {
-        _mockRepo.Setup(r => r.Count()).Returns(5);
+        for (int i = 0; i < 10; i++)
+        {
+            var job = _service.CreateJob($"Job{i + 1}", "/src", "/dst", BackupType.Full);
+            Assert.Equal($"Job{i + 1}", job.Name);
+        }
 
-        Assert.Throws<JobLimitExceededException>(
-            () => _service.CreateJob("TestJob", "/src", "/dst", BackupType.Full));
+        _mockRepo.Verify(r => r.Save(It.IsAny<BackupJob>()), Times.Exactly(10));
     }
 
     [Fact]
     public void CreateJob_InvalidName_ShouldThrow()
     {
-        _mockRepo.Setup(r => r.Count()).Returns(0);
-
         Assert.Throws<InvalidBackupJobException>(
             () => _service.CreateJob("", "/src", "/dst", BackupType.Full));
     }

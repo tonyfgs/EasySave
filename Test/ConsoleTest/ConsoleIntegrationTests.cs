@@ -18,18 +18,46 @@ public class ConsoleIntegrationTests
         return new LanguageManager(languageService);
     }
 
+    private BackupExecutionService CreateExecutionService(Mock<IJobRepository> mockRepo)
+    {
+        var mockFileSystem = new Mock<IFileSystemGateway>();
+        mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
+            .Returns(new List<FileDescriptor>());
+        var mockPathAdapter = new Mock<IPathAdapter>();
+        mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
+        var mockEventBus = new Mock<IEventBus>();
+        var mockEncryptionService = new Mock<IEncryptionService>();
+        var mockEncryptionConfig = new Mock<IEncryptionConfig>();
+        mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
+            .Returns(new List<string>().AsReadOnly());
+        var mockDetector = new Mock<IBusinessSoftwareDetector>();
+        mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+        var mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
+        mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        var domainService = new BackupDomainService();
+        var tracker = new ProgressTracker();
+
+        var executor = new BackupExecutor(
+            mockFileSystem.Object, mockPathAdapter.Object,
+            mockEventBus.Object, domainService, tracker,
+            mockEncryptionService.Object, mockEncryptionConfig.Object,
+            mockDetector.Object, mockDetectorConfig.Object);
+        var strategyFactory = new BackupStrategyFactory();
+        return new BackupExecutionService(
+            mockRepo.Object, executor, strategyFactory,
+            mockDetector.Object, mockDetectorConfig.Object, mockEventBus.Object);
+    }
+
     [Fact]
     public void FullFlow_CreateAndListJob_ShouldShowCreatedJob()
     {
         var mockRepo = new Mock<IJobRepository>();
-        mockRepo.Setup(r => r.Count()).Returns(0);
         var createdJobs = new List<BackupJob>();
         mockRepo.Setup(r => r.Save(It.IsAny<BackupJob>()))
             .Callback<BackupJob>(j => { j.Id = 1; createdJobs.Add(j); });
         mockRepo.Setup(r => r.GetAll()).Returns(() => new List<BackupJob>(createdJobs));
 
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(mockRepo.Object, domainService);
+        var jobService = new JobManagementService(mockRepo.Object);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -57,11 +85,37 @@ public class ConsoleIntegrationTests
     }
 
     [Fact]
+    public void FullFlow_CreateJob_NumericBackupType_ShouldShowError()
+    {
+        var mockRepo = new Mock<IJobRepository>();
+        var jobService = new JobManagementService(mockRepo.Object);
+
+        var mockConfig = new Mock<ILanguageConfig>();
+        mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
+        var languageManager = CreateLanguageManager(mockConfig);
+        var inputParser = new InputParser();
+
+        var output = new StringWriter();
+        var commands = new Dictionary<string, ICommand>
+        {
+            ["1"] = new CreateJobCommand(jobService, languageManager, output),
+            ["7"] = new ExitCommand()
+        };
+
+        var input = new StringReader("1\nTestBackup\n/source\n/target\n1\n7\n");
+        var ui = new ConsoleUI(languageManager, inputParser, commands, input, output);
+        ui.Run();
+
+        var text = output.ToString();
+        Assert.Contains("Invalid backup type", text);
+        mockRepo.Verify(r => r.Save(It.IsAny<BackupJob>()), Times.Never);
+    }
+
+    [Fact]
     public void FullFlow_DeleteJob_ShouldCallRepositoryDelete()
     {
         var mockRepo = new Mock<IJobRepository>();
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(mockRepo.Object, domainService);
+        var jobService = new JobManagementService(mockRepo.Object);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -90,8 +144,7 @@ public class ConsoleIntegrationTests
         var existingJob = new BackupJob(1, "OldName", "/old/src", "/old/dst", BackupType.Full);
         mockRepo.Setup(r => r.GetById(1)).Returns(existingJob);
 
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(mockRepo.Object, domainService);
+        var jobService = new JobManagementService(mockRepo.Object);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -154,20 +207,7 @@ public class ConsoleIntegrationTests
         mockRepo.Setup(r => r.GetById(1)).Returns(job1);
         mockRepo.Setup(r => r.GetById(2)).Returns(job2);
 
-        var mockFileSystem = new Mock<IFileSystemGateway>();
-        mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
-            .Returns(new List<FileDescriptor>());
-        var mockPathAdapter = new Mock<IPathAdapter>();
-        mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
-        var mockEventBus = new Mock<IEventBus>();
-        var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
-
-        var executor = new BackupExecutor(
-            mockFileSystem.Object, mockPathAdapter.Object,
-            mockEventBus.Object, domainService, tracker);
-        var strategyFactory = new BackupStrategyFactory();
-        var executionService = new BackupExecutionService(mockRepo.Object, executor, strategyFactory);
+        var executionService = CreateExecutionService(mockRepo);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -199,20 +239,7 @@ public class ConsoleIntegrationTests
         mockRepo.Setup(r => r.GetById(1)).Returns(job1);
         mockRepo.Setup(r => r.GetById(2)).Returns(job2);
 
-        var mockFileSystem = new Mock<IFileSystemGateway>();
-        mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
-            .Returns(new List<FileDescriptor>());
-        var mockPathAdapter = new Mock<IPathAdapter>();
-        mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
-        var mockEventBus = new Mock<IEventBus>();
-        var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
-
-        var executor = new BackupExecutor(
-            mockFileSystem.Object, mockPathAdapter.Object,
-            mockEventBus.Object, domainService, tracker);
-        var strategyFactory = new BackupStrategyFactory();
-        var executionService = new BackupExecutionService(mockRepo.Object, executor, strategyFactory);
+        var executionService = CreateExecutionService(mockRepo);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
@@ -244,20 +271,7 @@ public class ConsoleIntegrationTests
         mockRepo.Setup(r => r.GetById(1)).Returns(job1);
         mockRepo.Setup(r => r.GetById(3)).Returns(job3);
 
-        var mockFileSystem = new Mock<IFileSystemGateway>();
-        mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
-            .Returns(new List<FileDescriptor>());
-        var mockPathAdapter = new Mock<IPathAdapter>();
-        mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
-        var mockEventBus = new Mock<IEventBus>();
-        var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
-
-        var executor = new BackupExecutor(
-            mockFileSystem.Object, mockPathAdapter.Object,
-            mockEventBus.Object, domainService, tracker);
-        var strategyFactory = new BackupStrategyFactory();
-        var executionService = new BackupExecutionService(mockRepo.Object, executor, strategyFactory);
+        var executionService = CreateExecutionService(mockRepo);
 
         var mockConfig = new Mock<ILanguageConfig>();
         mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);

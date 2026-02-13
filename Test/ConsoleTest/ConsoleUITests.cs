@@ -326,4 +326,25 @@ public class ConsoleUITests
 
         Assert.Contains("* pour tous", output.ToString());
     }
+
+    [Fact]
+    public void Run_ExecuteCommand_InvalidInput_ShouldDisplayErrorAndContinue()
+    {
+        var mockCommand = new Mock<ICommand>();
+        mockCommand.Setup(c => c.Execute(It.IsAny<List<string>>()))
+            .Returns(CommandResult.Ok());
+
+        var commands = new Dictionary<string, ICommand>
+        {
+            ["5"] = mockCommand.Object,
+            ["7"] = new ExitCommand()
+        };
+
+        var (ui, output) = CreateUI("5\n--help\n7\n", commands);
+        ui.Run();
+
+        var text = output.ToString();
+        Assert.Contains("Invalid input", text);
+        Assert.Contains("Goodbye!", text);
+    }
 }

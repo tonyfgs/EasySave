@@ -2,6 +2,7 @@ namespace Model;
 
 public class BackupDomainService
 {
+    [Obsolete("Job limit removed in v2.0 (FR-02, issue #10). Retained per PRD decision.")]
     public void ValidateJobLimit(int currentCount, int maxJobs)
     {
         if (currentCount >= maxJobs)

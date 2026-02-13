@@ -22,8 +22,7 @@ public class ModifyJobCommandTests
         _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
         var languageService = new LanguageApplicationService(_mockConfig.Object);
         _languageManager = new LanguageManager(languageService);
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         _command = new ModifyJobCommand(jobService, _languageManager, TextWriter.Null);
     }
 
@@ -78,12 +77,39 @@ public class ModifyJobCommandTests
         var existingJob = new BackupJob(1, "OldJob", "/old/src", "/old/dst", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(existingJob);
         var output = new StringWriter();
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         var command = new ModifyJobCommand(jobService, _languageManager, output);
 
         command.Execute(new List<string> { "1", "NewJob", "/new/src", "/new/dst", "Differential" });
 
         Assert.Equal("Travail 1 modifie.", output.ToString().Trim());
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    public void Execute_NumericBackupType_ShouldReturnFailure(string numericType)
+    {
+        var args = new List<string> { "1", "NewJob", "/src", "/dst", numericType };
+
+        var result = _command.Execute(args);
+
+        Assert.False(result.IsSuccess());
+    }
+
+    [Theory]
+    [InlineData("differential")]
+    [InlineData("DIFFERENTIAL")]
+    [InlineData("Differential")]
+    public void Execute_CaseInsensitiveBackupType_ShouldReturnSuccess(string type)
+    {
+        var existingJob = new BackupJob(1, "OldJob", "/old/src", "/old/dst", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(existingJob);
+
+        var args = new List<string> { "1", "NewJob", "/new/src", "/new/dst", type };
+
+        var result = _command.Execute(args);
+
+        Assert.True(result.IsSuccess());
     }
 }

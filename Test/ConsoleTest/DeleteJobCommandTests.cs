@@ -22,8 +22,7 @@ public class DeleteJobCommandTests
         _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
         var languageService = new LanguageApplicationService(_mockConfig.Object);
         _languageManager = new LanguageManager(languageService);
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         _command = new DeleteJobCommand(jobService, _languageManager, TextWriter.Null);
     }
 
@@ -56,8 +55,7 @@ public class DeleteJobCommandTests
     {
         _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.FR);
         var output = new StringWriter();
-        var domainService = new BackupDomainService();
-        var jobService = new JobManagementService(_mockRepo.Object, domainService);
+        var jobService = new JobManagementService(_mockRepo.Object);
         var command = new DeleteJobCommand(jobService, _languageManager, output);
 
         command.Execute(new List<string> { "1" });

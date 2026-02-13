@@ -123,4 +123,161 @@ public class AppConfigurationTests : IDisposable
 
         Assert.Equal(Language.FR, config2.GetLanguage());
     }
+
+    // --- IEncryptionConfig tests ---
+
+    [Fact]
+    public void AppConfiguration_ImplementsIEncryptionConfig()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.IsAssignableFrom<IEncryptionConfig>(config);
+    }
+
+    [Fact]
+    public void GetEncryptedExtensions_Default_ShouldReturnEmptyList()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        var extensions = config.GetEncryptedExtensions();
+
+        Assert.Empty(extensions);
+    }
+
+    [Fact]
+    public void SetEncryptedExtensions_ThenGet_ShouldRoundTrip()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+        var extensions = new List<string> { ".docx", ".pdf" }.AsReadOnly();
+
+        config.SetEncryptedExtensions(extensions);
+
+        Assert.Equal(extensions, config.GetEncryptedExtensions());
+    }
+
+    [Fact]
+    public void GetEncryptionKey_Default_ShouldReturnEmpty()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(string.Empty, config.GetEncryptionKey());
+    }
+
+    [Fact]
+    public void SetEncryptionKey_ThenGet_ShouldRoundTrip()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        config.SetEncryptionKey("my-secret-key");
+
+        Assert.Equal("my-secret-key", config.GetEncryptionKey());
+    }
+
+    [Fact]
+    public void Save_ThenLoad_ShouldPersistEncryptionConfig()
+    {
+        var config1 = new AppConfiguration(_configPath, "/logs");
+        config1.SetEncryptedExtensions(new List<string> { ".docx", ".xlsx" }.AsReadOnly());
+        config1.SetEncryptionKey("secret-key-123");
+        config1.Save();
+
+        var config2 = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(new List<string> { ".docx", ".xlsx" }, config2.GetEncryptedExtensions());
+        Assert.Equal("secret-key-123", config2.GetEncryptionKey());
+    }
+
+    // --- IBusinessSoftwareConfig tests ---
+
+    [Fact]
+    public void AppConfiguration_ImplementsIBusinessSoftwareConfig()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.IsAssignableFrom<IBusinessSoftwareConfig>(config);
+    }
+
+    [Fact]
+    public void GetBusinessSoftwareName_Default_ShouldReturnEmpty()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(string.Empty, config.GetBusinessSoftwareName());
+    }
+
+    [Fact]
+    public void SetBusinessSoftwareName_ThenGet_ShouldRoundTrip()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        config.SetBusinessSoftwareName("Calculator");
+
+        Assert.Equal("Calculator", config.GetBusinessSoftwareName());
+    }
+
+    [Fact]
+    public void IsDetectionEnabled_Default_ShouldReturnFalse()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.False(config.IsDetectionEnabled());
+    }
+
+    [Fact]
+    public void SetDetectionEnabled_ThenGet_ShouldRoundTrip()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        config.SetDetectionEnabled(true);
+
+        Assert.True(config.IsDetectionEnabled());
+    }
+
+    [Fact]
+    public void Save_ThenLoad_ShouldPersistBusinessSoftwareConfig()
+    {
+        var config1 = new AppConfiguration(_configPath, "/logs");
+        config1.SetBusinessSoftwareName("Calculator");
+        config1.SetDetectionEnabled(true);
+        config1.Save();
+
+        var config2 = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal("Calculator", config2.GetBusinessSoftwareName());
+        Assert.True(config2.IsDetectionEnabled());
+    }
+
+    [Fact]
+    public void Save_ThenLoad_ShouldPersistAllV2Fields()
+    {
+        var config1 = new AppConfiguration(_configPath, "/logs");
+        config1.SetLanguage(Language.FR);
+        config1.SetLogFormat(LogFormat.XML);
+        config1.SetEncryptedExtensions(new List<string> { ".pdf" }.AsReadOnly());
+        config1.SetEncryptionKey("key");
+        config1.SetBusinessSoftwareName("Calc");
+        config1.SetDetectionEnabled(true);
+        config1.Save();
+
+        var config2 = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(Language.FR, config2.GetLanguage());
+        Assert.Equal(LogFormat.XML, config2.GetLogFormat());
+        Assert.Equal(new List<string> { ".pdf" }, config2.GetEncryptedExtensions());
+        Assert.Equal("key", config2.GetEncryptionKey());
+        Assert.Equal("Calc", config2.GetBusinessSoftwareName());
+        Assert.True(config2.IsDetectionEnabled());
+    }
+
+    [Fact]
+    public void Load_FromNonExistentFile_ShouldUseV2Defaults()
+    {
+        var missingPath = Path.Combine(_testDir, "missing", "config.json");
+        var config = new AppConfiguration(missingPath, "/logs");
+
+        Assert.Empty(config.GetEncryptedExtensions());
+        Assert.Equal(string.Empty, config.GetEncryptionKey());
+        Assert.Equal(string.Empty, config.GetBusinessSoftwareName());
+        Assert.False(config.IsDetectionEnabled());
+    }
 }

@@ -1,5 +1,6 @@
 using Application.Services;
 using EasySave.UI;
+using EasySave.Utilities;
 using Model;
 
 namespace EasySave.Commands;
@@ -25,7 +26,7 @@ public class ModifyJobCommand : ICommand
             var name = args[1];
             var source = args[2];
             var target = args[3];
-            var type = Enum.Parse<BackupType>(args[4], ignoreCase: true);
+            var type = BackupTypeParser.Parse(args[4]);
 
             _jobService.ModifyJob(id, name, source, target, type);
             _output.WriteLine(_languageManager.GetFormattedString("success.job_modified", id));

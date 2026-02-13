@@ -22,8 +22,7 @@ public class ListJobsCommandTests
         _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
         var languageService = new LanguageApplicationService(_mockConfig.Object);
         _languageManager = new LanguageManager(languageService);
-        var domainService = new BackupDomainService();
-        _jobService = new JobManagementService(_mockRepo.Object, domainService);
+        _jobService = new JobManagementService(_mockRepo.Object);
     }
 
     [Fact]
