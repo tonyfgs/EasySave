@@ -1,4 +1,5 @@
 using Application.Services;
+using EasySave.UI;
 using EasySave.Utilities;
 using Model;
 
@@ -7,11 +8,13 @@ namespace EasySave.Commands;
 public class CreateJobCommand : ICommand
 {
     private readonly JobManagementService _jobService;
+    private readonly LanguageManager _languageManager;
     private readonly TextWriter _output;
 
-    public CreateJobCommand(JobManagementService jobService, TextWriter? output = null)
+    public CreateJobCommand(JobManagementService jobService, LanguageManager languageManager, TextWriter? output = null)
     {
         _jobService = jobService;
+        _languageManager = languageManager;
         _output = output ?? Console.Out;
     }
 
@@ -25,7 +28,7 @@ public class CreateJobCommand : ICommand
             var type = BackupTypeParser.Parse(args[3]);
 
             var job = _jobService.CreateJob(name, source, target, type);
-            _output.WriteLine($"Job '{job.Name}' created with ID {job.Id}.");
+            _output.WriteLine(_languageManager.GetFormattedString("success.job_created", job.Name, job.Id));
             return CommandResult.Ok();
         }
         catch (Exception ex) when (ex is DomainException or ArgumentException
