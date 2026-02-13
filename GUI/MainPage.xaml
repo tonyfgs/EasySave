@@ -43,6 +43,13 @@
                         FontSize="15"
                         HorizontalOptions="Fill"/>
 
+                <Button Text="{Binding Localization.Settings}"
+                        Command="{Binding ShowSettingsCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="Black"
+                        FontSize="15"
+                        HorizontalOptions="Fill"/>
+
                 <!-- Spacer -->
                 <BoxView HeightRequest="1" Color="#E0E0E0" Margin="0,15"/>
 

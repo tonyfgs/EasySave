@@ -27,6 +27,7 @@ public class LocalizationService : INotifyPropertyChanged
     public string JobList => GetString("nav.job_list");
     public string CreateJob => GetString("nav.create_job");
     public string Execute => GetString("nav.execute");
+    public string Settings => GetString("nav.settings");
     public string LanguageToggle => GetString("nav.language");
 
     // Job List View
@@ -54,6 +55,14 @@ public class LocalizationService : INotifyPropertyChanged
     public string ExecuteAll => GetString("execute.all");
     public string Executing => GetString("execute.executing");
     public string NoJobsAvailable => GetString("execute.no_jobs");
+
+    // Settings View
+    public string SettingsTitle => GetString("settings.title");
+    public string LogFormatLabel => GetString("settings.log_format");
+    public string LogFormatDescription => GetString("settings.log_format_desc");
+    public string JsonDescription => GetString("settings.json_desc");
+    public string XmlDescription => GetString("settings.xml_desc");
+    public string SettingsInfo => GetString("settings.info");
 
     // Common
     public string Success => GetString("common.success");
@@ -93,6 +102,7 @@ public class LocalizationService : INotifyPropertyChanged
             ["nav.job_list"] = new() { [Language.EN] = "📋 Job List", [Language.FR] = "📋 Liste des Tâches" },
             ["nav.create_job"] = new() { [Language.EN] = "➕ Create Job", [Language.FR] = "➕ Créer une Tâche" },
             ["nav.execute"] = new() { [Language.EN] = "▶️ Execute", [Language.FR] = "▶️ Exécuter" },
+            ["nav.settings"] = new() { [Language.EN] = "⚙️ Settings", [Language.FR] = "⚙️ Paramètres" },
             ["nav.language"] = new() { [Language.EN] = "🌐 EN / FR", [Language.FR] = "🌐 EN / FR" },
 
             // Job List
@@ -117,7 +127,14 @@ public class LocalizationService : INotifyPropertyChanged
             ["execute.all"] = new() { [Language.EN] = "Execute All", [Language.FR] = "Tout Exécuter" },
             ["execute.executing"] = new() { [Language.EN] = "Executing backups...", [Language.FR] = "Exécution des sauvegardes..." },
             ["execute.no_jobs"] = new() { [Language.EN] = "No jobs available to execute.", [Language.FR] = "Aucune tâche disponible à exécuter." },
-            
+
+            // Settings
+            ["settings.title"] = new() { [Language.EN] = "Settings", [Language.FR] = "Paramètres" },
+            ["settings.log_format"] = new() { [Language.EN] = "Log Format", [Language.FR] = "Format des Logs" },
+            ["settings.log_format_desc"] = new() { [Language.EN] = "Choose the format for backup transfer logs", [Language.FR] = "Choisissez le format pour les logs de transfert de sauvegarde" },
+            ["settings.json_desc"] = new() { [Language.EN] = "JSON format (default)", [Language.FR] = "Format JSON (par défaut)" },
+            ["settings.xml_desc"] = new() { [Language.EN] = "XML format", [Language.FR] = "Format XML" },
+            ["settings.info"] = new() { [Language.EN] = "Logs are automatically saved when backups are executed. Changes take effect immediately.", [Language.FR] = "Les logs sont automatiquement sauvegardés lors de l'exécution des sauvegardes. Les modifications prennent effet immédiatement." },
 
             // Common
             ["common.edit"] = new() { [Language.EN] = "Edit", [Language.FR] = "Modifier" },

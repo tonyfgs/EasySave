@@ -22,6 +22,7 @@ public partial class MainPage : ContentPage
     private readonly JobListView _jobListView = new();
     private readonly CreateJobView _createJobView = new();
     private readonly ExecuteJobView _executeJobView = new();
+    private readonly SettingsView _settingsView = new();
 
     private ContentView? _contentArea;
 
@@ -65,6 +66,7 @@ public partial class MainPage : ContentPage
             JobListViewModel => _jobListView,
             CreateJobViewModel => _createJobView,
             ExecuteJobViewModel => _executeJobView,
+            SettingsViewModel => _settingsView,
             _ => _jobListView
         };
 

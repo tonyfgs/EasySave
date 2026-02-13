@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GUI.ViewModels"
+             x:Class="GUI.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="20" Padding="30">
+
+            <!-- Page Title -->
+            <Label Text="{Binding Localization.SettingsTitle}"
+                   FontSize="28" FontAttributes="Bold"
+                   TextColor="#333333"
+                   Margin="0,0,0,10"/>
+
+            <!-- Log Format Section -->
+            <Border Stroke="#E0E0E0" StrokeThickness="1"
+                    Padding="20" BackgroundColor="White">
+                <VerticalStackLayout Spacing="15">
+
+                    <Label Text="{Binding Localization.LogFormatLabel}"
+                           FontSize="18" FontAttributes="Bold"
+                           TextColor="#1976D2"/>
+
+                    <Label Text="{Binding Localization.LogFormatDescription}"
+                           FontSize="14" TextColor="#666666"
+                           Margin="0,0,0,10"/>
+
+                    <!-- Format Selection Buttons -->
+                    <HorizontalStackLayout Spacing="10">
+                        <Button Text="JSON"
+                                Command="{Binding SelectJsonCommand}"
+                                BackgroundColor="{Binding JsonButtonColor}"
+                                TextColor="White"
+                                WidthRequest="120"
+                                HeightRequest="45"
+                                FontSize="16"
+                                FontAttributes="Bold"/>
+
+                        <Button Text="XML"
+                                Command="{Binding SelectXmlCommand}"
+                                BackgroundColor="{Binding XmlButtonColor}"
+                                TextColor="White"
+                                WidthRequest="120"
+                                HeightRequest="45"
+                                FontSize="16"
+                                FontAttributes="Bold"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Current Selection Info -->
+                    <Border Stroke="#4CAF50" StrokeThickness="2"
+                            Padding="12" BackgroundColor="#E8F5E9">
+                        <Label Text="{Binding CurrentSelectionText}"
+                               FontSize="14" TextColor="#2E7D32"
+                               FontAttributes="Bold"/>
+                    </Border>
+
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Info Message -->
+            <Border Stroke="#FFC107" StrokeThickness="1"
+                    Padding="15" BackgroundColor="#FFF9E6">
+                <HorizontalStackLayout Spacing="10">
+                    <Label Text="ℹ️" FontSize="20" VerticalOptions="Center"/>
+                    <Label Text="{Binding Localization.SettingsInfo}"
+                           FontSize="14" TextColor="#F57C00"
+                           VerticalOptions="Center"
+                           LineBreakMode="WordWrap"
+                           MaximumWidthRequest="600"/>
+                </HorizontalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentView>
