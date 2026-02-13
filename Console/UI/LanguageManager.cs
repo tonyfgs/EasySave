@@ -30,6 +30,12 @@ public class LanguageManager
         return $"[{key}]";
     }
 
+    public string GetFormattedString(string key, params object[] args)
+    {
+        var template = GetString(key);
+        return string.Format(template, args);
+    }
+
     private static Dictionary<string, Dictionary<Language, string>> InitializeResources()
     {
         return new Dictionary<string, Dictionary<Language, string>>
@@ -126,23 +132,33 @@ public class LanguageManager
             },
             ["success.job_created"] = new()
             {
-                [Language.EN] = "Job created successfully.",
-                [Language.FR] = "Travail cree avec succes."
+                [Language.EN] = "Job '{0}' created with ID {1}.",
+                [Language.FR] = "Travail '{0}' cree avec l'ID {1}."
             },
             ["success.job_deleted"] = new()
             {
-                [Language.EN] = "Job deleted successfully.",
-                [Language.FR] = "Travail supprime avec succes."
+                [Language.EN] = "Job {0} deleted.",
+                [Language.FR] = "Travail {0} supprime."
             },
             ["success.job_modified"] = new()
             {
-                [Language.EN] = "Job modified successfully.",
-                [Language.FR] = "Travail modifie avec succes."
+                [Language.EN] = "Job {0} modified.",
+                [Language.FR] = "Travail {0} modifie."
             },
             ["success.language_changed"] = new()
             {
-                [Language.EN] = "Language changed successfully.",
-                [Language.FR] = "Langue changee avec succes."
+                [Language.EN] = "Language changed to {0}.",
+                [Language.FR] = "Langue changee en {0}."
+            },
+            ["language.en"] = new()
+            {
+                [Language.EN] = "English",
+                [Language.FR] = "Anglais"
+            },
+            ["language.fr"] = new()
+            {
+                [Language.EN] = "French",
+                [Language.FR] = "Francais"
             },
             ["info.no_jobs"] = new()
             {

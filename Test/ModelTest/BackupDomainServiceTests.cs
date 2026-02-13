@@ -2,6 +2,7 @@ using Model;
 
 namespace ModelTest;
 
+#pragma warning disable CS0618 // ValidateJobLimit is intentionally tested despite [Obsolete]
 public class BackupDomainServiceTests
 {
     private readonly BackupDomainService _service = new();

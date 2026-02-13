@@ -1,4 +1,5 @@
 using Application.Services;
+using EasySave.UI;
 using Model;
 
 namespace EasySave.Commands;
@@ -6,11 +7,13 @@ namespace EasySave.Commands;
 public class DeleteJobCommand : ICommand
 {
     private readonly JobManagementService _jobService;
+    private readonly LanguageManager _languageManager;
     private readonly TextWriter _output;
 
-    public DeleteJobCommand(JobManagementService jobService, TextWriter? output = null)
+    public DeleteJobCommand(JobManagementService jobService, LanguageManager languageManager, TextWriter? output = null)
     {
         _jobService = jobService;
+        _languageManager = languageManager;
         _output = output ?? Console.Out;
     }
 
@@ -20,7 +23,7 @@ public class DeleteJobCommand : ICommand
         {
             var id = int.Parse(args[0]);
             _jobService.DeleteJob(id);
-            _output.WriteLine($"Job {id} deleted.");
+            _output.WriteLine(_languageManager.GetFormattedString("success.job_deleted", id));
             return CommandResult.Ok();
         }
         catch (Exception ex) when (ex is DomainException or FormatException

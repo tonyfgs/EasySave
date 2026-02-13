@@ -1,15 +1,18 @@
 using Application.Services;
+using EasySave.UI;
 
 namespace EasySave.Commands;
 
 public class ListJobsCommand : ICommand
 {
     private readonly JobManagementService _jobService;
+    private readonly LanguageManager _languageManager;
     private readonly TextWriter _output;
 
-    public ListJobsCommand(JobManagementService jobService, TextWriter? output = null)
+    public ListJobsCommand(JobManagementService jobService, LanguageManager languageManager, TextWriter? output = null)
     {
         _jobService = jobService;
+        _languageManager = languageManager;
         _output = output ?? Console.Out;
     }
 
@@ -18,7 +21,7 @@ public class ListJobsCommand : ICommand
         var jobs = _jobService.ListJobs();
         if (jobs.Count == 0)
         {
-            _output.WriteLine("No backup jobs found.");
+            _output.WriteLine(_languageManager.GetString("info.no_jobs"));
             return CommandResult.Ok();
         }
         foreach (var job in jobs)

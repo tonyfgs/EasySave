@@ -78,6 +78,8 @@ public class LanguageManagerTests
     [InlineData("success.job_deleted")]
     [InlineData("success.job_modified")]
     [InlineData("success.language_changed")]
+    [InlineData("language.en")]
+    [InlineData("language.fr")]
     [InlineData("info.no_jobs")]
     [InlineData("info.goodbye")]
     public void GetString_AllRequiredKeys_ShouldExistInBothLanguages(string key)
@@ -89,6 +91,34 @@ public class LanguageManagerTests
         _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.FR);
         var frResult = _manager.GetString(key);
         Assert.DoesNotContain("[", frResult);
+    }
+
+    [Fact]
+    public void GetFormattedString_ShouldInterpolateArguments()
+    {
+        _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.EN);
+
+        var result = _manager.GetFormattedString("success.language_changed", "English");
+
+        Assert.Equal("Language changed to English.", result);
+    }
+
+    [Fact]
+    public void GetFormattedString_French_ShouldInterpolateArguments()
+    {
+        _mockConfig.Setup(c => c.GetLanguage()).Returns(Language.FR);
+
+        var result = _manager.GetFormattedString("success.language_changed", "Francais");
+
+        Assert.Equal("Langue changee en Francais.", result);
+    }
+
+    [Fact]
+    public void GetFormattedString_UnknownKey_ShouldReturnBracketedKey()
+    {
+        var result = _manager.GetFormattedString("nonexistent.key", "arg1");
+
+        Assert.Equal("[nonexistent.key]", result);
     }
 
     [Fact]
