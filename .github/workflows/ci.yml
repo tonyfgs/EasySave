@@ -128,14 +128,16 @@ jobs:
       - name: Generate key and create test file
         run: |
           OUTPUT=$(dotnet run --no-build --configuration Release --project CryptoSoft/CryptoSoft.csproj -- genkey)
-          KEY=$(echo "$OUTPUT" | grep -oP '^\s+\K[A-Za-z0-9+/=]{40,}$' | head -1)
+          KEY=$(echo "$OUTPUT" | sed -n 's/^[[:space:]]*\([A-Za-z0-9+/=]\{40,\}\)[[:space:]]*$/\1/p' | head -1)
           if [ -z "$KEY" ]; then
             echo "::error::Failed to extract key from genkey output"
             echo "$OUTPUT"
             exit 1
           fi
           echo "::add-mask::$KEY"
-          echo "SECRET_KEY=$KEY" >> "$GITHUB_ENV"
+          echo "SECRET_KEY<<CRYPTOSOFT_EOF" >> "$GITHUB_ENV"
+          echo "$KEY" >> "$GITHUB_ENV"
+          echo "CRYPTOSOFT_EOF" >> "$GITHUB_ENV"
           echo "Hello EasySave smoke test" > /tmp/test-file.txt
           cp /tmp/test-file.txt /tmp/test-file-original.txt
 
