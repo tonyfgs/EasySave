@@ -281,7 +281,8 @@ public static class AesGcmEncryptor
 
     private static int DecryptWithAesGcm(FileStream inputStream, FileStream outputStream, byte[] key)
     {
-        if (inputStream.Length < NonceSize + TagSize)
+        // Le byte de mode (0x01) a déjà été lu, donc on est à la position 1
+        if (inputStream.Length < 1 + NonceSize + TagSize)
         {
             Console.Error.WriteLine($"Erreur : Fichier AES-GCM corrompu (trop petit)");
             return 4;
@@ -293,7 +294,8 @@ public static class AesGcmEncryptor
         inputStream.Read(nonce, 0, NonceSize);
         inputStream.Read(tag, 0, TagSize);
 
-        long ciphertextLength = inputStream.Length - NonceSize - TagSize;
+        // Longueur = total - mode_flag(1) - nonce(12) - tag(16)
+        long ciphertextLength = inputStream.Length - 1 - NonceSize - TagSize;
 
         using var aesGcm = new AesGcm(key, TagSize);
 
