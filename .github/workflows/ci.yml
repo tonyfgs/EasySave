@@ -127,19 +127,26 @@ jobs:
 
       - name: Generate key and create test file
         run: |
-          KEY=$(dotnet run --project CryptoSoft/CryptoSoft.csproj -- genkey 2>/dev/null | grep -oP '^\s+\K[A-Za-z0-9+/=]{40,}')
+          OUTPUT=$(dotnet run --no-build --configuration Release --project CryptoSoft/CryptoSoft.csproj -- genkey)
+          KEY=$(echo "$OUTPUT" | grep -oP '^\s+\K[A-Za-z0-9+/=]{40,}$' | head -1)
+          if [ -z "$KEY" ]; then
+            echo "::error::Failed to extract key from genkey output"
+            echo "$OUTPUT"
+            exit 1
+          fi
+          echo "::add-mask::$KEY"
           echo "SECRET_KEY=$KEY" >> "$GITHUB_ENV"
           echo "Hello EasySave smoke test" > /tmp/test-file.txt
           cp /tmp/test-file.txt /tmp/test-file-original.txt
 
       - name: Encrypt
         run: |
-          dotnet run --project CryptoSoft/CryptoSoft.csproj -- encrypt /tmp/test-file.txt "$SECRET_KEY"
+          dotnet run --no-build --configuration Release --project CryptoSoft/CryptoSoft.csproj -- encrypt /tmp/test-file.txt "$SECRET_KEY"
           test -f /tmp/test-file.txt.crypt || (echo "::error::Encrypted file not created" && exit 1)
 
       - name: Decrypt
         run: |
-          dotnet run --project CryptoSoft/CryptoSoft.csproj -- decrypt /tmp/test-file.txt.crypt "$SECRET_KEY"
+          dotnet run --no-build --configuration Release --project CryptoSoft/CryptoSoft.csproj -- decrypt /tmp/test-file.txt.crypt "$SECRET_KEY"
           test -f /tmp/test-file.txt || (echo "::error::Decrypted file not created" && exit 1)
 
       - name: Verify round-trip
