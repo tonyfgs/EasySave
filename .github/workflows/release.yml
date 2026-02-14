@@ -113,7 +113,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Cache MAUI workload
+        id: cache-maui
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/Microsoft/dotnet/workloads
+            ~/AppData/Local/Microsoft/dotnet/metadata
+            ~/Library/Caches/dotnet/workloads
+            ~/Library/Caches/dotnet/metadata
+          key: ${{ runner.os }}-maui-${{ hashFiles('GUI/GUI.csproj') }}
+
       - name: Install MAUI workload
+        if: steps.cache-maui.outputs.cache-hit != 'true'
         run: dotnet workload install maui
 
       - name: Extract version from tag

@@ -32,8 +32,18 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Install MAUI workload
+      - name: Cache MAUI workload
         if: runner.os == 'Windows'
+        id: cache-maui
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/Microsoft/dotnet/workloads
+            ~/AppData/Local/Microsoft/dotnet/metadata
+          key: ${{ runner.os }}-maui-${{ hashFiles('GUI/GUI.csproj') }}
+
+      - name: Install MAUI workload
+        if: runner.os == 'Windows' && steps.cache-maui.outputs.cache-hit != 'true'
         run: dotnet workload install maui
 
       - uses: actions/cache@v4
@@ -100,6 +110,47 @@ jobs:
         with:
           recreate: true
           path: code-coverage-results.md
+
+  cryptosoft-smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build CryptoSoft
+        run: dotnet build CryptoSoft/CryptoSoft.csproj --configuration Release
+
+      - name: Generate key and create test file
+        run: |
+          KEY=$(dotnet run --project CryptoSoft/CryptoSoft.csproj -- genkey 2>/dev/null | grep -oP '^\s+\K[A-Za-z0-9+/=]{40,}')
+          echo "SECRET_KEY=$KEY" >> "$GITHUB_ENV"
+          echo "Hello EasySave smoke test" > /tmp/test-file.txt
+          cp /tmp/test-file.txt /tmp/test-file-original.txt
+
+      - name: Encrypt
+        run: |
+          dotnet run --project CryptoSoft/CryptoSoft.csproj -- encrypt /tmp/test-file.txt "$SECRET_KEY"
+          test -f /tmp/test-file.txt.crypt || (echo "::error::Encrypted file not created" && exit 1)
+
+      - name: Decrypt
+        run: |
+          dotnet run --project CryptoSoft/CryptoSoft.csproj -- decrypt /tmp/test-file.txt.crypt "$SECRET_KEY"
+          test -f /tmp/test-file.txt || (echo "::error::Decrypted file not created" && exit 1)
+
+      - name: Verify round-trip
+        run: |
+          if diff -q /tmp/test-file-original.txt /tmp/test-file.txt; then
+            echo "✅ Round-trip OK: decrypt(encrypt(file)) == file"
+          else
+            echo "::error::Round-trip failed: decrypted file differs from original"
+            diff /tmp/test-file-original.txt /tmp/test-file.txt
+            exit 1
+          fi
 
   format-check:
     runs-on: ubuntu-latest
