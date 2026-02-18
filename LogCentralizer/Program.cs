@@ -131,9 +131,6 @@ Console.WriteLine();
 
 app.Run("http://localhost:5050");
 
-/// <summary>
-/// Represents a log entry received from EasySave clients.
-/// </summary>
 public record LogEntry
 {
     public DateTime Timestamp { get; init; }
