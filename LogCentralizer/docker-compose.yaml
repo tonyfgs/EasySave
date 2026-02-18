@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  log-centralizer:
+    build:
+      context: ..
+      dockerfile: LogCentralizer/Dockerfile
+    container_name: easysave-log-centralizer
+    ports:
+      - "5050:5050"
+    volumes:
+      # Monte le dossier logs du container sur l'hôte
+      - ./logs:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5050
+      - LogDirectory=/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+

@@ -4,7 +4,7 @@ using Shared;
 
 namespace Infrastructure;
 
-public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig
+public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig, ILogModeConfig
 {
     private readonly string _configPath;
     private readonly string _logDirectory;
@@ -14,6 +14,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
     private string _encryptionKey;
     private string _businessSoftwareName;
     private bool _detectionEnabled;
+    private LogMode _logMode;
+    private string _centralizedServerUrl;
 
     public AppConfiguration(string configPath, string logDirectory)
     {
@@ -25,6 +27,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _encryptionKey = string.Empty;
         _businessSoftwareName = string.Empty;
         _detectionEnabled = false;
+        _logMode = LogMode.LocalOnly;
+        _centralizedServerUrl = "http://localhost:5050";
         Load();
     }
 
@@ -55,6 +59,15 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
 
     public void SetDetectionEnabled(bool enabled) => _detectionEnabled = enabled;
 
+    // ILogModeConfig implementation
+    public LogMode GetLogMode() => _logMode;
+
+    public void SetLogMode(LogMode mode) => _logMode = mode;
+
+    public string GetCentralizedServerUrl() => _centralizedServerUrl;
+
+    public void SetCentralizedServerUrl(string url) => _centralizedServerUrl = url;
+
     public void Save()
     {
         var directory = Path.GetDirectoryName(_configPath);
@@ -68,7 +81,9 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
             EncryptedExtensions = _encryptedExtensions,
             EncryptionKey = _encryptionKey,
             BusinessSoftwareName = _businessSoftwareName,
-            DetectionEnabled = _detectionEnabled
+            DetectionEnabled = _detectionEnabled,
+            LogMode = _logMode,
+            CentralizedServerUrl = _centralizedServerUrl
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -95,6 +110,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _encryptionKey = data.EncryptionKey;
         _businessSoftwareName = data.BusinessSoftwareName;
         _detectionEnabled = data.DetectionEnabled;
+        _logMode = data.LogMode;
+        _centralizedServerUrl = data.CentralizedServerUrl;
     }
 
     private class ConfigData
@@ -105,5 +122,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         public string EncryptionKey { get; set; } = string.Empty;
         public string BusinessSoftwareName { get; set; } = string.Empty;
         public bool DetectionEnabled { get; set; }
+        public LogMode LogMode { get; set; } = LogMode.LocalOnly;
+        public string CentralizedServerUrl { get; set; } = "http://localhost:5050";
     }
 }
