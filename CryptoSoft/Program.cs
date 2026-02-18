@@ -39,7 +39,7 @@ class Program
     private static int RunWithMutex(string[] args, string operation)
     {
         using var mutex = new Mutex(false, MutexName, out bool createdNew);
-        
+
         // Si le mutex existe déjà, essayer de l'acquérir immédiatement
         if (!createdNew)
         {
