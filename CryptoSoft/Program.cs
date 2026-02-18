@@ -2,6 +2,8 @@
 
 class Program
 {
+    private const string MutexName = "Global\\CryptoSoftMutex";
+
     static int Main(string[] args)
     {
         Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -18,19 +20,62 @@ class Program
 
         string operation = args[0].ToLowerInvariant();
 
-        // Génération de clé (pas de stockage)
+        // Génération de clé et help n'ont pas besoin du mutex
         if (operation == "genkey")
         {
             return HandleGenerateKey();
         }
 
-        // Commandes help
         if (operation == "help")
         {
             ShowUsage();
             return 0;
         }
 
+        // Pour encrypt/decrypt, utiliser le mutex mono-instance
+        return RunWithMutex(args, operation);
+    }
+
+    private static int RunWithMutex(string[] args, string operation)
+    {
+        using var mutex = new Mutex(false, MutexName, out bool createdNew);
+        
+        // Si le mutex existe déjà, essayer de l'acquérir immédiatement
+        if (!createdNew)
+        {
+            try
+            {
+                if (!mutex.WaitOne(0))
+                {
+                    Console.Error.WriteLine("CryptoSoft is already running");
+                    return 6;
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                // Le mutex a été abandonné par un autre processus, on peut continuer
+            }
+        }
+
+        try
+        {
+            return ExecuteOperation(args, operation);
+        }
+        finally
+        {
+            try
+            {
+                mutex.ReleaseMutex();
+            }
+            catch (ApplicationException)
+            {
+                // Le mutex n'était pas possédé, ignorer
+            }
+        }
+    }
+
+    private static int ExecuteOperation(string[] args, string operation)
+    {
         // Chiffrement/déchiffrement nécessitent 3 arguments
         if (args.Length < 3)
         {
@@ -140,6 +185,7 @@ class Program
         Console.WriteLine("  3 - Erreur entrée/sortie (disque plein, permissions...)");
         Console.WriteLine("  4 - Échec d'authentification GCM (mauvaise clé ou fichier altéré)");
         Console.WriteLine("  5 - Clé invalide (pas exactement 32 octets après base64)");
+        Console.WriteLine("  6 - Instance déjà en cours d'exécution");
         Console.WriteLine();
         Console.WriteLine("SÉCURITÉ :");
         Console.WriteLine("  • Algorithme : AES-256-GCM (mode AEAD)");
@@ -149,6 +195,7 @@ class Program
         Console.WriteLine("  • Standard : NIST/ANSSI 2026");
         Console.WriteLine("  • Support : Fichiers de toute taille");
         Console.WriteLine("  • Nettoyage automatique : Suppression artefacts en cas d'échec");
+        Console.WriteLine("  • Mono-instance : Une seule exécution simultanée autorisée");
         Console.WriteLine();
         Console.WriteLine("GESTION DES CLÉS :");
         Console.WriteLine("  • CryptoSoft ne stocke AUCUNE clé");
@@ -166,6 +213,7 @@ class Program
             3 => "Erreur I/O",
             4 => "Échec authentification GCM",
             5 => "Clé invalide",
+            6 => "Instance déjà en cours",
             _ => "Code inconnu"
         };
     }

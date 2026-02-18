@@ -8,25 +8,34 @@ public class CryptoSoftAdapter : IEncryptionService
     private readonly IEncryptionConfig _config;
     private readonly string _cryptoSoftPath;
     private readonly int _timeoutMs;
+    private readonly int _maxRetries;
+    private readonly int _initialRetryDelayMs;
 
-    public CryptoSoftAdapter(IEncryptionConfig config, string cryptoSoftPath, int timeoutMs = 300000)
+    public CryptoSoftAdapter(
+        IEncryptionConfig config, 
+        string cryptoSoftPath, 
+        int timeoutMs = 300000,
+        int maxRetries = 5,
+        int initialRetryDelayMs = 100)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _cryptoSoftPath = cryptoSoftPath ?? throw new ArgumentNullException(nameof(cryptoSoftPath));
         _timeoutMs = timeoutMs;
+        _maxRetries = maxRetries;
+        _initialRetryDelayMs = initialRetryDelayMs;
     }
 
     public CryptoResult EncryptFile(string filePath)
     {
-        return ExecuteCryptoSoft("encrypt", filePath);
+        return ExecuteWithRetry("encrypt", filePath);
     }
 
     public CryptoResult DecryptFile(string filePath)
     {
-        return ExecuteCryptoSoft("decrypt", filePath);
+        return ExecuteWithRetry("decrypt", filePath);
     }
 
-    private CryptoResult ExecuteCryptoSoft(string subcommand, string filePath)
+    private CryptoResult ExecuteWithRetry(string subcommand, string filePath)
     {
         var key = _config.GetEncryptionKey();
 
@@ -42,6 +51,53 @@ public class CryptoSoftAdapter : IEncryptionService
             };
         }
 
+        var totalStopwatch = Stopwatch.StartNew();
+        int retryCount = 0;
+        int currentDelayMs = _initialRetryDelayMs;
+
+        while (true)
+        {
+            var result = ExecuteCryptoSoft(subcommand, filePath, key);
+
+            // Si succès ou erreur autre que AlreadyRunning, retourner immédiatement
+            if (result.Success || result.ErrorCode != CryptoErrorCode.AlreadyRunning)
+            {
+                return result;
+            }
+
+            // Vérifier si on a atteint le nombre max de retries
+            if (retryCount >= _maxRetries)
+            {
+                return new CryptoResult
+                {
+                    Success = false,
+                    DurationMs = totalStopwatch.ElapsedMilliseconds,
+                    ErrorCode = CryptoErrorCode.AlreadyRunning,
+                    ErrorMessage = $"CryptoSoft toujours occupé après {_maxRetries} tentatives"
+                };
+            }
+
+            // Vérifier si on dépasse le timeout total
+            if (totalStopwatch.ElapsedMilliseconds + currentDelayMs > _timeoutMs)
+            {
+                return new CryptoResult
+                {
+                    Success = false,
+                    DurationMs = totalStopwatch.ElapsedMilliseconds,
+                    ErrorCode = CryptoErrorCode.Timeout,
+                    ErrorMessage = $"Timeout atteint en attendant que CryptoSoft soit disponible"
+                };
+            }
+
+            // Exponential backoff
+            Thread.Sleep(currentDelayMs);
+            currentDelayMs = Math.Min(currentDelayMs * 2, 5000); // Cap à 5 secondes
+            retryCount++;
+        }
+    }
+
+    private CryptoResult ExecuteCryptoSoft(string subcommand, string filePath, string key)
+    {
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -122,6 +178,7 @@ public class CryptoSoftAdapter : IEncryptionService
             3 => CryptoErrorCode.IoError,
             4 => CryptoErrorCode.AuthTagInvalid,
             5 => CryptoErrorCode.InvalidKey,
+            6 => CryptoErrorCode.AlreadyRunning,
             _ => CryptoErrorCode.Unknown
         };
     }

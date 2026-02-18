@@ -9,7 +9,7 @@
 
     <Grid ColumnDefinitions="220,*">
 
-        <!-- Sidebar Navigation -->
+        <!-- Sidebar Navigatio -->
         <Border Grid.Column="0"
                 BackgroundColor="#F5F5F5"
                 StrokeThickness="0">
