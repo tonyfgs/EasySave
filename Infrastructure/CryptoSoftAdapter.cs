@@ -12,8 +12,8 @@ public class CryptoSoftAdapter : IEncryptionService
     private readonly int _initialRetryDelayMs;
 
     public CryptoSoftAdapter(
-        IEncryptionConfig config, 
-        string cryptoSoftPath, 
+        IEncryptionConfig config,
+        string cryptoSoftPath,
         int timeoutMs = 300000,
         int maxRetries = 5,
         int initialRetryDelayMs = 100)
