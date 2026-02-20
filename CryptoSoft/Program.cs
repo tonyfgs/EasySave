@@ -2,13 +2,11 @@
 
 class Program
 {
-    private const string MutexName = "Global\\CryptoSoftMutex";
-
     static int Main(string[] args)
     {
         Console.WriteLine("═══════════════════════════════════════════════════════");
-        Console.WriteLine("  CryptoSoft v1.0 - AES-256-GCM Encryption Tool");
-        Console.WriteLine("  Développé pour EasySave");
+        Console.WriteLine("  CryptoSoft v1.1 - AES-256-GCM Encryption Tool");
+        Console.WriteLine("  Développé pour EasySave (Mode Client-Serveur)");
         Console.WriteLine("═══════════════════════════════════════════════════════");
         Console.WriteLine();
 
@@ -20,67 +18,28 @@ class Program
 
         string operation = args[0].ToLowerInvariant();
 
-        // Génération de clé et help n'ont pas besoin du mutex
-        if (operation == "genkey")
+        return operation switch
         {
-            return HandleGenerateKey();
-        }
-
-        if (operation == "help")
-        {
-            ShowUsage();
-            return 0;
-        }
-
-        // Pour encrypt/decrypt, utiliser le mutex mono-instance
-        return RunWithMutex(args, operation);
+            "server" => StartServer(),
+            "genkey" => HandleGenerateKey(),
+            "help" => ShowHelp(),
+            "encrypt" => HandleEncryptClient(args),
+            "decrypt" => HandleDecryptClient(args),
+            _ => HandleUnknownOperation(operation)
+        };
     }
 
-    private static int RunWithMutex(string[] args, string operation)
+    private static int StartServer()
     {
-        using var mutex = new Mutex(false, MutexName, out bool createdNew);
-
-        // Si le mutex existe déjà, essayer de l'acquérir immédiatement
-        if (!createdNew)
-        {
-            try
-            {
-                if (!mutex.WaitOne(0))
-                {
-                    Console.Error.WriteLine("CryptoSoft is already running");
-                    return 6;
-                }
-            }
-            catch (AbandonedMutexException)
-            {
-                // Le mutex a été abandonné par un autre processus, on peut continuer
-            }
-        }
-
-        try
-        {
-            return ExecuteOperation(args, operation);
-        }
-        finally
-        {
-            try
-            {
-                mutex.ReleaseMutex();
-            }
-            catch (ApplicationException)
-            {
-                // Le mutex n'était pas possédé, ignorer
-            }
-        }
+        var server = new CryptoServer();
+        return server.Run();
     }
 
-    private static int ExecuteOperation(string[] args, string operation)
+    private static int HandleEncryptClient(string[] args)
     {
-        // Chiffrement/déchiffrement nécessitent 3 arguments
         if (args.Length < 3)
         {
             Console.Error.WriteLine("Erreur : Nombre d'arguments insuffisant.");
-            Console.Error.WriteLine();
             ShowUsage();
             return 2;
         }
@@ -88,24 +47,92 @@ class Program
         string filePath = args[1];
         string keyBase64 = args[2];
 
-        if (string.IsNullOrWhiteSpace(keyBase64))
+        if (string.IsNullOrWhiteSpace(keyBase64) || string.IsNullOrWhiteSpace(filePath))
         {
-            Console.Error.WriteLine("Erreur : La clé de chiffrement ne peut pas être vide.");
+            Console.Error.WriteLine("Erreur : Le chemin ou la clé ne peut pas être vide.");
             return 2;
         }
 
-        if (string.IsNullOrWhiteSpace(filePath))
+        // Vérifier si le serveur est en cours d'exécution
+        if (CryptoClient.IsServerRunning())
         {
-            Console.Error.WriteLine("Erreur : Le chemin du fichier ne peut pas être vide.");
+            Console.WriteLine("📡 Connexion au serveur CryptoSoft...");
+            var client = new CryptoClient();
+            var response = client.Encrypt(filePath, keyBase64);
+
+            if (response.Success)
+            {
+                Console.WriteLine($"✓ Chiffrement réussi en {response.DurationMs}ms");
+                return 0;
+            }
+            else
+            {
+                Console.Error.WriteLine($"✗ Échec: {response.ErrorMessage}");
+                return response.ExitCode;
+            }
+        }
+        else
+        {
+            // Mode standalone (pas de serveur)
+            Console.WriteLine($"🔒 Chiffrement direct de : {filePath}");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            int exitCode = AesGcmEncryptor.EncryptFile(filePath, keyBase64);
+            stopwatch.Stop();
+
+            Console.WriteLine($"⏱ Temps : {stopwatch.ElapsedMilliseconds} ms");
+            Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
+            return exitCode;
+        }
+    }
+
+    private static int HandleDecryptClient(string[] args)
+    {
+        if (args.Length < 3)
+        {
+            Console.Error.WriteLine("Erreur : Nombre d'arguments insuffisant.");
+            ShowUsage();
             return 2;
         }
 
-        return operation switch
+        string filePath = args[1];
+        string keyBase64 = args[2];
+
+        if (string.IsNullOrWhiteSpace(keyBase64) || string.IsNullOrWhiteSpace(filePath))
         {
-            "encrypt" => HandleEncrypt(filePath, keyBase64),
-            "decrypt" => HandleDecrypt(filePath, keyBase64),
-            _ => HandleUnknownOperation(operation)
-        };
+            Console.Error.WriteLine("Erreur : Le chemin ou la clé ne peut pas être vide.");
+            return 2;
+        }
+
+        // Vérifier si le serveur est en cours d'exécution
+        if (CryptoClient.IsServerRunning())
+        {
+            Console.WriteLine("📡 Connexion au serveur CryptoSoft...");
+            var client = new CryptoClient();
+            var response = client.Decrypt(filePath, keyBase64);
+
+            if (response.Success)
+            {
+                Console.WriteLine($"✓ Déchiffrement réussi en {response.DurationMs}ms");
+                return 0;
+            }
+            else
+            {
+                Console.Error.WriteLine($"✗ Échec: {response.ErrorMessage}");
+                return response.ExitCode;
+            }
+        }
+        else
+        {
+            // Mode standalone (pas de serveur)
+            Console.WriteLine($"🔓 Déchiffrement direct de : {filePath}");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            int exitCode = AesGcmEncryptor.DecryptFile(filePath, keyBase64);
+            stopwatch.Stop();
+
+            Console.WriteLine($"⏱ Temps : {stopwatch.ElapsedMilliseconds} ms");
+            Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
+            return exitCode;
+        }
     }
 
     private static int HandleGenerateKey()
@@ -121,34 +148,10 @@ class Program
         return 0;
     }
 
-    private static int HandleEncrypt(string filePath, string keyBase64)
+    private static int ShowHelp()
     {
-        Console.WriteLine($"🔒 Chiffrement de : {filePath}");
-        Console.WriteLine();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        int exitCode = AesGcmEncryptor.EncryptFile(filePath, keyBase64);
-        stopwatch.Stop();
-
-        Console.WriteLine();
-        Console.WriteLine($"⏱ Temps de chiffrement : {stopwatch.ElapsedMilliseconds} ms");
-        Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
-
-        return exitCode;
-    }
-
-    private static int HandleDecrypt(string filePath, string keyBase64)
-    {
-        Console.WriteLine($"🔓 Déchiffrement de : {filePath}");
-        Console.WriteLine();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        int exitCode = AesGcmEncryptor.DecryptFile(filePath, keyBase64);
-        stopwatch.Stop();
-
-        Console.WriteLine();
-        Console.WriteLine($"⏱ Temps de déchiffrement : {stopwatch.ElapsedMilliseconds} ms");
-        Console.WriteLine($"Code de retour : {exitCode} ({GetExitCodeDescription(exitCode)})");
-
-        return exitCode;
+        ShowUsage();
+        return 0;
     }
 
     private static int HandleUnknownOperation(string operation)
@@ -163,17 +166,22 @@ class Program
     {
         Console.WriteLine("UTILISATION :");
         Console.WriteLine();
+        Console.WriteLine("  Démarrer le serveur (mono-instance) :");
+        Console.WriteLine("    CryptoSoft.exe server");
+        Console.WriteLine("    → Lance le serveur qui accepte les requêtes de plusieurs jobs");
+        Console.WriteLine();
         Console.WriteLine("  Génération de clé :");
         Console.WriteLine("    CryptoSoft.exe genkey");
         Console.WriteLine("    → Génère une nouvelle clé AES-256. Sauvegardez-la vous-même !");
         Console.WriteLine();
         Console.WriteLine("  Chiffrement :");
-        Console.WriteLine("    CryptoSoft.exe encrypt \"C:\\dossier\\fichier.pdf\" \"cléBase64_32octets==\"");
-        Console.WriteLine("    → Crée fichier.pdf.crypt");
+        Console.WriteLine("    CryptoSoft.exe encrypt \"C:\\dossier\\fichier.pdf\" \"cléBase64==\"");
+        Console.WriteLine("    → Si serveur actif: envoie la requête au serveur");
+        Console.WriteLine("    → Sinon: chiffre directement");
         Console.WriteLine();
         Console.WriteLine("  Déchiffrement :");
-        Console.WriteLine("    CryptoSoft.exe decrypt \"C:\\dossier\\fichier.pdf.crypt\" \"cléBase64_32octets==\"");
-        Console.WriteLine("    → Recrée fichier.pdf");
+        Console.WriteLine("    CryptoSoft.exe decrypt \"C:\\dossier\\fichier.pdf.crypt\" \"cléBase64==\"");
+        Console.WriteLine("    → Même comportement que encrypt");
         Console.WriteLine();
         Console.WriteLine("  Aide :");
         Console.WriteLine("    CryptoSoft.exe help");
@@ -181,26 +189,16 @@ class Program
         Console.WriteLine("CODES DE RETOUR :");
         Console.WriteLine("  0 - Succès");
         Console.WriteLine("  1 - Fichier source introuvable / non lisible");
-        Console.WriteLine("  2 - Arguments invalides (mauvais nombre, clé vide)");
-        Console.WriteLine("  3 - Erreur entrée/sortie (disque plein, permissions...)");
-        Console.WriteLine("  4 - Échec d'authentification GCM (mauvaise clé ou fichier altéré)");
-        Console.WriteLine("  5 - Clé invalide (pas exactement 32 octets après base64)");
-        Console.WriteLine("  6 - Instance déjà en cours d'exécution");
+        Console.WriteLine("  2 - Arguments invalides");
+        Console.WriteLine("  3 - Erreur entrée/sortie");
+        Console.WriteLine("  4 - Échec d'authentification GCM");
+        Console.WriteLine("  5 - Clé invalide");
+        Console.WriteLine("  6 - Serveur déjà en cours / Timeout connexion");
         Console.WriteLine();
-        Console.WriteLine("SÉCURITÉ :");
-        Console.WriteLine("  • Algorithme : AES-256-GCM (mode AEAD)");
-        Console.WriteLine("  • Clé : 256 bits (32 octets) en Base64");
-        Console.WriteLine("  • Nonce : 12 octets aléatoires par fichier");
-        Console.WriteLine("  • Tag : 16 octets d'authentification");
-        Console.WriteLine("  • Standard : NIST/ANSSI 2026");
-        Console.WriteLine("  • Support : Fichiers de toute taille");
-        Console.WriteLine("  • Nettoyage automatique : Suppression artefacts en cas d'échec");
-        Console.WriteLine("  • Mono-instance : Une seule exécution simultanée autorisée");
-        Console.WriteLine();
-        Console.WriteLine("GESTION DES CLÉS :");
-        Console.WriteLine("  • CryptoSoft ne stocke AUCUNE clé");
-        Console.WriteLine("  • Vous devez sauvegarder vos clés vous-même");
-        Console.WriteLine("  • Perdre une clé = perdre l'accès aux fichiers chiffrés");
+        Console.WriteLine("ARCHITECTURE :");
+        Console.WriteLine("  • Mode Serveur : Un seul serveur, plusieurs clients simultanés");
+        Console.WriteLine("  • Mode Standalone : Si pas de serveur, chiffrement direct");
+        Console.WriteLine("  • Named Pipe : Communication inter-processus Windows");
     }
 
     private static string GetExitCodeDescription(int code)
@@ -213,7 +211,7 @@ class Program
             3 => "Erreur I/O",
             4 => "Échec authentification GCM",
             5 => "Clé invalide",
-            6 => "Instance déjà en cours",
+            6 => "Instance déjà en cours / Timeout",
             _ => "Code inconnu"
         };
     }
