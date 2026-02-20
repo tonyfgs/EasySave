@@ -1,4 +1,8 @@
-﻿namespace CryptoSoft;
+﻿using System.Runtime.Versioning;
+
+[assembly: SupportedOSPlatform("windows")]
+
+namespace CryptoSoft;
 
 class Program
 {

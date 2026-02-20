@@ -1,9 +1,11 @@
-using System.IO.Pipes;
-using System.Text;
 using System.Collections.Concurrent;
+using System.IO.Pipes;
+using System.Runtime.Versioning;
+using System.Text;
 
 namespace CryptoSoft;
 
+[SupportedOSPlatform("windows")]
 public class CryptoServer
 {
     private const string PipeName = "CryptoSoftPipe";

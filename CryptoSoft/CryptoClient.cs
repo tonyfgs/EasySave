@@ -1,8 +1,10 @@
 using System.IO.Pipes;
+using System.Runtime.Versioning;
 using System.Text;
 
 namespace CryptoSoft;
 
+[SupportedOSPlatform("windows")]
 public class CryptoClient
 {
     private const string PipeName = "CryptoSoftPipe";
@@ -12,14 +14,14 @@ public class CryptoClient
     {
         _timeoutMs = timeoutMs;
     }
-    
+
     public record CryptoResponse(bool Success, int ExitCode, long DurationMs, string? ErrorMessage);
-    
+
     public CryptoResponse Encrypt(string filePath, string key)
     {
         return SendRequest("encrypt", filePath, key);
     }
-    
+
     public CryptoResponse Decrypt(string filePath, string key)
     {
         return SendRequest("decrypt", filePath, key);
@@ -85,7 +87,7 @@ public class CryptoClient
             return new CryptoResponse(false, 3, stopwatch.ElapsedMilliseconds, $"Erreur: {ex.Message}");
         }
     }
-    
+
     public static bool IsServerRunning()
     {
         return CryptoServer.IsServerRunning();
