@@ -3,9 +3,9 @@ namespace LogCentralizer.Models;
 public record LogEntry
 {
     public DateTime Timestamp { get; init; }
-    
+
     public string BackupName { get; init; } = string.Empty;
-    
+
     public string SourcePath { get; init; } = string.Empty;
 
     public string DestPath { get; init; } = string.Empty;
