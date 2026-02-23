@@ -1,3 +1,5 @@
+using Shared;
+
 namespace Application.Ports;
 
 public interface ILogModeConfig

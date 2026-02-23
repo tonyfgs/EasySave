@@ -1,31 +1,33 @@
 using System.Text.Json;
 using System.Xml.Serialization;
+using LogCentralizer.Models;
 
 namespace LogCentralizer.Services;
 
-/// <summary>
-/// Aggregates logs from multiple EasySave clients into daily log files.
-/// </summary>
 public class LogAggregator
 {
     private readonly string _logDirectory;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<LogAggregator> _logger;
 
-    public LogAggregator(IConfiguration configuration)
+    public LogAggregator(IConfiguration configuration, ILogger<LogAggregator> logger)
     {
+        _logger = logger;
         _logDirectory = configuration.GetValue<string>("LogDirectory") ?? "/app/logs";
         Directory.CreateDirectory(_logDirectory);
 
         _jsonOptions = new JsonSerializerOptions
         {
-            WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        _logger.LogInformation("LogAggregator initialized. Log directory: {LogDir}", _logDirectory);
     }
 
     /// <summary>
-    /// Adds a log entry to today's log file.
+    /// Adds a log entry to today's log file using append (O(1)).
+    /// Uses JSON Lines format (one JSON object per line).
     /// </summary>
     public async Task AddLogAsync(LogEntry entry)
     {
@@ -33,14 +35,21 @@ public class LogAggregator
         try
         {
             var filePath = GetLogFilePath(DateOnly.FromDateTime(entry.Timestamp));
-            var entries = await LoadEntriesAsync(filePath);
 
-            entries.Add(entry);
+            // Append single JSON line (O(1) write instead of O(n) rewrite)
+            var jsonLine = JsonSerializer.Serialize(entry, _jsonOptions);
+            await File.AppendAllTextAsync(filePath, jsonLine + Environment.NewLine);
 
-            var json = JsonSerializer.Serialize(entries, _jsonOptions);
-            await File.WriteAllTextAsync(filePath, json);
-
-            Console.WriteLine($"[LogAggregator] ✓ Log from {entry.MachineName}/{entry.UserId}: {entry.BackupName}");
+            _logger.LogDebug(
+                "Log received from {MachineName}/{UserId}: {BackupName}",
+                entry.MachineName,
+                entry.UserId,
+                entry.BackupName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write log entry: {Message}", ex.Message);
+            throw;
         }
         finally
         {
@@ -50,6 +59,7 @@ public class LogAggregator
 
     /// <summary>
     /// Gets all log entries for a specific date.
+    /// Reads JSON Lines format (one JSON object per line).
     /// </summary>
     public async Task<List<LogEntry>> GetLogsAsync(DateOnly date)
     {
@@ -60,7 +70,7 @@ public class LogAggregator
             throw new FileNotFoundException($"No logs for {date}");
         }
 
-        return await LoadEntriesAsync(filePath);
+        return await LoadEntriesFromJsonLinesAsync(filePath);
     }
 
     /// <summary>
@@ -75,23 +85,23 @@ public class LogAggregator
         {
             try
             {
-                var entries = await LoadEntriesAsync(file);
+                var entries = await LoadEntriesFromJsonLinesAsync(file);
                 stats.TotalEntries += entries.Count;
                 stats.TotalFilesTransferred += entries.Count;
                 stats.TotalBytesTransferred += entries.Sum(e => e.FileSize);
 
                 foreach (var entry in entries)
                 {
-                    if (!stats.UniqueUsers.Contains(entry.UserId))
+                    if (!string.IsNullOrEmpty(entry.UserId) && !stats.UniqueUsers.Contains(entry.UserId))
                         stats.UniqueUsers.Add(entry.UserId);
 
-                    if (!stats.UniqueMachines.Contains(entry.MachineName))
+                    if (!string.IsNullOrEmpty(entry.MachineName) && !stats.UniqueMachines.Contains(entry.MachineName))
                         stats.UniqueMachines.Add(entry.MachineName);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Skip corrupted files
+                _logger.LogWarning(ex, "Failed to read log file {File}, skipping", file);
             }
         }
 
@@ -130,21 +140,40 @@ public class LogAggregator
         return Path.Combine(_logDirectory, $"{date:yyyy-MM-dd}.json");
     }
 
-    private async Task<List<LogEntry>> LoadEntriesAsync(string filePath)
+    /// <summary>
+    /// Loads entries from JSON Lines format (one JSON object per line).
+    /// </summary>
+    private async Task<List<LogEntry>> LoadEntriesFromJsonLinesAsync(string filePath)
     {
+        var entries = new List<LogEntry>();
+
         if (!File.Exists(filePath))
         {
-            return new List<LogEntry>();
+            return entries;
         }
 
-        var json = await File.ReadAllTextAsync(filePath);
-        if (string.IsNullOrWhiteSpace(json))
+        var lines = await File.ReadAllLinesAsync(filePath);
+
+        foreach (var line in lines)
         {
-            return new List<LogEntry>();
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            try
+            {
+                var entry = JsonSerializer.Deserialize<LogEntry>(line, _jsonOptions);
+                if (entry != null)
+                {
+                    entries.Add(entry);
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse log line, skipping: {Line}", line);
+            }
         }
 
-        return JsonSerializer.Deserialize<List<LogEntry>>(json, _jsonOptions)
-               ?? new List<LogEntry>();
+        return entries;
     }
 }
 

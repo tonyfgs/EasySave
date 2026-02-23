@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+﻿using LogCentralizer.Models;
 using LogCentralizer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,7 +8,12 @@ builder.Services.AddSingleton<LogAggregator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Configure logging
+builder.Logging.AddConsole();
+
 var app = builder.Build();
+
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
 // Configure Swagger for development
 if (app.Environment.IsDevelopment())
@@ -22,9 +27,17 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp =
     .WithName("HealthCheck")
     .WithTags("Health");
 
-// Receive log entry
-app.MapPost("/api/log", async (LogEntry entry, LogAggregator aggregator) =>
+// Receive log entry with validation
+app.MapPost("/api/log", async (LogEntry entry, LogAggregator aggregator, ILogger<Program> log) =>
 {
+    // Validate entry
+    if (!entry.IsValid())
+    {
+        log.LogWarning("Invalid log entry received: BackupName={BackupName}, Timestamp={Timestamp}",
+            entry.BackupName, entry.Timestamp);
+        return Results.BadRequest(new { error = "Invalid log entry. BackupName is required and Timestamp must be set." });
+    }
+
     try
     {
         await aggregator.AddLogAsync(entry);
@@ -32,15 +45,24 @@ app.MapPost("/api/log", async (LogEntry entry, LogAggregator aggregator) =>
     }
     catch (Exception ex)
     {
+        log.LogError(ex, "Failed to process log entry");
         return Results.Problem($"Failed to process log: {ex.Message}");
     }
 })
     .WithName("PostLog")
     .WithTags("Logs");
 
-// Receive batch of log entries
-app.MapPost("/api/logs/batch", async (List<LogEntry> entries, LogAggregator aggregator) =>
+// Receive batch of log entries with validation
+app.MapPost("/api/logs/batch", async (List<LogEntry> entries, LogAggregator aggregator, ILogger<Program> log) =>
 {
+    // Validate all entries
+    var invalidEntries = entries.Where(e => !e.IsValid()).ToList();
+    if (invalidEntries.Count > 0)
+    {
+        log.LogWarning("Batch contains {Count} invalid entries", invalidEntries.Count);
+        return Results.BadRequest(new { error = $"Batch contains {invalidEntries.Count} invalid entries." });
+    }
+
     try
     {
         foreach (var entry in entries)
@@ -51,6 +73,7 @@ app.MapPost("/api/logs/batch", async (List<LogEntry> entries, LogAggregator aggr
     }
     catch (Exception ex)
     {
+        log.LogError(ex, "Failed to process log batch");
         return Results.Problem($"Failed to process logs: {ex.Message}");
     }
 })
@@ -58,7 +81,7 @@ app.MapPost("/api/logs/batch", async (List<LogEntry> entries, LogAggregator aggr
     .WithTags("Logs");
 
 // Get logs for a specific date
-app.MapGet("/api/logs/{date}", async (string date, LogAggregator aggregator, string? format) =>
+app.MapGet("/api/logs/{date}", async (string date, LogAggregator aggregator, string? format, ILogger<Program> log) =>
 {
     try
     {
@@ -83,6 +106,7 @@ app.MapGet("/api/logs/{date}", async (string date, LogAggregator aggregator, str
     }
     catch (Exception ex)
     {
+        log.LogError(ex, "Failed to retrieve logs for {Date}", date);
         return Results.Problem($"Failed to retrieve logs: {ex.Message}");
     }
 })
@@ -94,7 +118,7 @@ app.MapGet("/api/logs/today", async (LogAggregator aggregator) =>
 {
     try
     {
-        var logs = await aggregator.GetLogsAsync(DateOnly.FromDateTime(DateTime.Now));
+        var logs = await aggregator.GetLogsAsync(DateOnly.FromDateTime(DateTime.UtcNow));
         return Results.Ok(logs);
     }
     catch (FileNotFoundException)
@@ -114,32 +138,16 @@ app.MapGet("/api/stats", async (LogAggregator aggregator) =>
     .WithName("GetStatistics")
     .WithTags("Statistics");
 
-Console.WriteLine("═══════════════════════════════════════════════════════");
-Console.WriteLine("  LogCentralizer v1.0 - EasySave Log Aggregation Service");
-Console.WriteLine("═══════════════════════════════════════════════════════");
-Console.WriteLine();
-Console.WriteLine("Listening on: http://localhost:5050");
-Console.WriteLine();
-Console.WriteLine("Endpoints:");
-Console.WriteLine("  POST /api/log          - Receive a log entry");
-Console.WriteLine("  POST /api/logs/batch   - Receive batch of logs");
-Console.WriteLine("  GET  /api/logs/{date}  - Get logs for a date (yyyy-MM-dd)");
-Console.WriteLine("  GET  /api/logs/today   - Get today's logs");
-Console.WriteLine("  GET  /api/stats        - Get statistics");
-Console.WriteLine("  GET  /api/health       - Health check");
-Console.WriteLine();
+logger.LogInformation("═══════════════════════════════════════════════════════");
+logger.LogInformation("  LogCentralizer v1.0 - EasySave Log Aggregation Service");
+logger.LogInformation("═══════════════════════════════════════════════════════");
+logger.LogInformation("Listening on: http://localhost:5050");
+logger.LogInformation("Endpoints:");
+logger.LogInformation("  POST /api/log          - Receive a log entry");
+logger.LogInformation("  POST /api/logs/batch   - Receive batch of logs");
+logger.LogInformation("  GET  /api/logs/{{date}}  - Get logs for a date (yyyy-MM-dd)");
+logger.LogInformation("  GET  /api/logs/today   - Get today's logs");
+logger.LogInformation("  GET  /api/stats        - Get statistics");
+logger.LogInformation("  GET  /api/health       - Health check");
 
-app.Run("http://localhost:5050");
-
-public record LogEntry
-{
-    public DateTime Timestamp { get; init; }
-    public string BackupName { get; init; } = string.Empty;
-    public string SourcePath { get; init; } = string.Empty;
-    public string DestPath { get; init; } = string.Empty;
-    public long FileSize { get; init; }
-    public long TransferTimeMs { get; init; }
-    public long EncryptionTimeMs { get; init; }
-    public string UserId { get; init; } = string.Empty;
-    public string MachineName { get; init; } = string.Empty;
-}
+app.Run("http://+:5050");

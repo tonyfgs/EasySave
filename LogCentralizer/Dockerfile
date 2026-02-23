@@ -28,5 +28,8 @@ RUN mkdir -p /app/logs
 ENV ASPNETCORE_URLS=http://+:5050
 ENV LogDirectory=/app/logs
 
-ENTRYPOINT ["dotnet", "LogCentralizer.dll"]
+# Health check using wget (available in aspnet image) instead of curl
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5050/api/health || exit 1
 
+ENTRYPOINT ["dotnet", "LogCentralizer.dll"]
