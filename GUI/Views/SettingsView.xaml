@@ -118,6 +118,29 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Large File Transfer Section -->
+            <Border StrokeShape="RoundRectangle 12"
+                    Stroke="{AppThemeBinding Light=#E0E0E0, Dark=#333333}"
+                    Padding="20"
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="{Binding Localization.LargeFileSizeTitle}"
+                           FontSize="18" FontAttributes="Bold" TextColor="#1976D2"/>
+
+                    <Label Text="{Binding Localization.LargeFileSizeLabel}" FontSize="14"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#BBBBBB}"/>
+
+                    <Entry Text="{Binding LargeFileSizeThresholdKb}"
+                           Keyboard="Numeric"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                           BackgroundColor="{AppThemeBinding Light=#FAFAFA, Dark=#2C2C2C}"/>
+
+                    <Label Text="{Binding Localization.LargeFileSizeHelp}" FontSize="12"
+                           TextColor="{AppThemeBinding Light=#888888, Dark=#999999}"
+                           LineBreakMode="WordWrap"/>
+                </VerticalStackLayout>
+            </Border>
+
             <Button Text="{Binding Localization.SaveButton}"
                     Command="{Binding SaveSettingsCommand}"
                     BackgroundColor="#2E7D32"

@@ -84,6 +84,9 @@ public class LocalizationService : INotifyPropertyChanged
     public string BusinessSoftwareBlocked => GetString("execute.business_software_blocked");
     public string ExtensionsSearchPlaceholder => GetString("settings.extensions_search_placeholder");
     public string SoftwareSearchPlaceholder => GetString("settings.software_search_placeholder");
+    public string LargeFileSizeTitle => GetString("settings.large_file_title");
+    public string LargeFileSizeLabel => GetString("settings.large_file_label");
+    public string LargeFileSizeHelp => GetString("settings.large_file_help");
     public string SaveButton => GetString("settings.save_button");
     public string SettingsInfo => GetString("settings.info");
 
@@ -185,6 +188,9 @@ public class LocalizationService : INotifyPropertyChanged
             ["settings.business_software_help"] = new() { [Language.EN] = "Backup will be paused while this software is running", [Language.FR] = "La sauvegarde sera mise en pause pendant l'exécution de ce logiciel" },
             ["settings.extensions_search_placeholder"] = new() { [Language.EN] = "Search or add extension...", [Language.FR] = "Rechercher ou ajouter une extension..." },
             ["settings.software_search_placeholder"] = new() { [Language.EN] = "Search or add software...", [Language.FR] = "Rechercher ou ajouter un logiciel..." },
+            ["settings.large_file_title"] = new() { [Language.EN] = "Large File Transfer", [Language.FR] = "Transfert de Fichiers Volumineux" },
+            ["settings.large_file_label"] = new() { [Language.EN] = "Large File Threshold (Ko)", [Language.FR] = "Seuil Fichier Volumineux (Ko)" },
+            ["settings.large_file_help"] = new() { [Language.EN] = "Files above this size cannot be transferred simultaneously. Set to 0 to disable.", [Language.FR] = "Les fichiers dépassant ce seuil ne peuvent pas être transférés simultanément. 0 pour désactiver." },
             ["settings.save_button"] = new() { [Language.EN] = "Save Settings", [Language.FR] = "Enregistrer les Paramètres" },
             ["settings.info"] = new() { [Language.EN] = "Settings are saved automatically. Changes take effect immediately.", [Language.FR] = "Les paramètres sont sauvegardés automatiquement. Les modifications prennent effet immédiatement." },
 

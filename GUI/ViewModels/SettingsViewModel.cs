@@ -18,6 +18,7 @@ public class SettingsViewModel : ObservableObject
     private LogFormat _selectedLogFormat;
     private string _encryptionKey = string.Empty;
     private bool _detectionEnabled;
+    private string _largeFileSizeThresholdKb = "0";
 
     public Language SelectedLanguage
     {
@@ -52,6 +53,17 @@ public class SettingsViewModel : ObservableObject
     {
         get => _detectionEnabled;
         set => SetProperty(ref _detectionEnabled, value);
+    }
+
+    public string LargeFileSizeThresholdKb
+    {
+        get => _largeFileSizeThresholdKb;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value) ? "0" : value;
+            if (long.TryParse(normalized, out var parsed) && parsed >= 0)
+                SetProperty(ref _largeFileSizeThresholdKb, parsed.ToString());
+        }
     }
 
     public LocalizationService Localization => _localization;
@@ -167,6 +179,9 @@ public class SettingsViewModel : ObservableObject
 
         DetectionEnabled = _appConfig.IsDetectionEnabled();
 
+        _largeFileSizeThresholdKb = _appConfig.GetLargeFileSizeThresholdKb().ToString();
+        OnPropertyChanged(nameof(LargeFileSizeThresholdKb));
+
         // Update UI
         UpdateLanguageButtons();
         UpdateLogFormatButtons();
@@ -190,6 +205,10 @@ public class SettingsViewModel : ObservableObject
         var softwareName = SelectedBusinessSoftware.FirstOrDefault() ?? string.Empty;
         _appConfig.SetBusinessSoftwareName(softwareName);
         _appConfig.SetDetectionEnabled(DetectionEnabled);
+
+        // Save large file threshold
+        if (long.TryParse(_largeFileSizeThresholdKb, out var threshold))
+            _appConfig.SetLargeFileSizeThresholdKb(threshold);
 
         // Persist to file
         _appConfig.Save();

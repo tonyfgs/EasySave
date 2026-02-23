@@ -5,6 +5,8 @@ namespace Model;
 [JsonConverter(typeof(JobStateJsonConverter))]
 public enum JobState
 {
+    Paused,
+    Stopping,
     Inactive,
     Active,
     End,

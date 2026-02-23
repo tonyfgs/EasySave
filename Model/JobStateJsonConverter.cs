@@ -10,6 +10,8 @@ public class JobStateJsonConverter : JsonConverter<JobState>
         var value = reader.GetString();
         return value switch
         {
+            "PAUSED" => JobState.Paused,
+            "STOPPING" => JobState.Stopping,
             "ACTIVE" => JobState.Active,
             "INACTIVE" => JobState.Inactive,
             "END" => JobState.End,
@@ -23,6 +25,8 @@ public class JobStateJsonConverter : JsonConverter<JobState>
     {
         var text = value switch
         {
+            JobState.Paused => "PAUSED",
+            JobState.Stopping => "STOPPING",
             JobState.Active => "ACTIVE",
             JobState.Inactive => "INACTIVE",
             JobState.End => "END",

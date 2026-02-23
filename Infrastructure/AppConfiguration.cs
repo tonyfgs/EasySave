@@ -4,7 +4,7 @@ using Shared;
 
 namespace Infrastructure;
 
-public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig
+public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig, ILargeFileConfig
 {
     private readonly string _configPath;
     private readonly string _logDirectory;
@@ -14,6 +14,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
     private string _encryptionKey;
     private string _businessSoftwareName;
     private bool _detectionEnabled;
+    private long _largeFileSizeThresholdKb;
 
     public AppConfiguration(string configPath, string logDirectory)
     {
@@ -25,6 +26,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _encryptionKey = string.Empty;
         _businessSoftwareName = string.Empty;
         _detectionEnabled = false;
+        _largeFileSizeThresholdKb = 0;
         Load();
     }
 
@@ -55,6 +57,10 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
 
     public void SetDetectionEnabled(bool enabled) => _detectionEnabled = enabled;
 
+    public long GetLargeFileSizeThresholdKb() => _largeFileSizeThresholdKb;
+
+    public void SetLargeFileSizeThresholdKb(long thresholdKb) => _largeFileSizeThresholdKb = thresholdKb;
+
     public void Save()
     {
         var directory = Path.GetDirectoryName(_configPath);
@@ -68,7 +74,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
             EncryptedExtensions = _encryptedExtensions,
             EncryptionKey = _encryptionKey,
             BusinessSoftwareName = _businessSoftwareName,
-            DetectionEnabled = _detectionEnabled
+            DetectionEnabled = _detectionEnabled,
+            LargeFileSizeThresholdKb = _largeFileSizeThresholdKb
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -95,6 +102,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _encryptionKey = data.EncryptionKey;
         _businessSoftwareName = data.BusinessSoftwareName;
         _detectionEnabled = data.DetectionEnabled;
+        _largeFileSizeThresholdKb = data.LargeFileSizeThresholdKb;
     }
 
     private class ConfigData
@@ -105,5 +113,6 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         public string EncryptionKey { get; set; } = string.Empty;
         public string BusinessSoftwareName { get; set; } = string.Empty;
         public bool DetectionEnabled { get; set; }
+        public long LargeFileSizeThresholdKb { get; set; }
     }
 }
