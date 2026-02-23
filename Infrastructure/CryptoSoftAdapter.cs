@@ -72,7 +72,7 @@ public class CryptoSoftAdapter : IEncryptionService
             return await ExecuteStandaloneAsync(operation, filePath, key);
         }
     }
-    
+
     private async Task<bool> EnsureServerRunningAsync()
     {
         if (IsServerRunning())
@@ -298,7 +298,7 @@ public class CryptoSoftAdapter : IEncryptionService
             };
         }
     }
-    
+
     private async Task<CryptoResult> ExecuteStandaloneAsync(string operation, string filePath, string key)
     {
         var stopwatch = Stopwatch.StartNew();
