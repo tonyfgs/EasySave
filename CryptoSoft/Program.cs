@@ -1,16 +1,12 @@
-﻿using System.Runtime.Versioning;
-
-[assembly: SupportedOSPlatform("windows")]
-
-namespace CryptoSoft;
+﻿namespace CryptoSoft;
 
 class Program
 {
     static int Main(string[] args)
     {
         Console.WriteLine("═══════════════════════════════════════════════════════");
-        Console.WriteLine("  CryptoSoft v1.1 - AES-256-GCM Encryption Tool");
-        Console.WriteLine("  Développé pour EasySave (Mode Client-Serveur)");
+        Console.WriteLine("  CryptoSoft v1.2 - AES-256-GCM Encryption Tool");
+        Console.WriteLine("  Développé pour EasySave (Mode Client-Serveur TCP)");
         Console.WriteLine("═══════════════════════════════════════════════════════");
         Console.WriteLine();
 
@@ -172,7 +168,8 @@ class Program
         Console.WriteLine();
         Console.WriteLine("  Démarrer le serveur (mono-instance) :");
         Console.WriteLine("    CryptoSoft.exe server");
-        Console.WriteLine("    → Lance le serveur qui accepte les requêtes de plusieurs jobs");
+        Console.WriteLine("    → Lance le serveur TCP qui accepte les requêtes de plusieurs jobs");
+        Console.WriteLine("    → Les encryptions sont traitées une à une (mono-instance)");
         Console.WriteLine();
         Console.WriteLine("  Génération de clé :");
         Console.WriteLine("    CryptoSoft.exe genkey");
@@ -181,7 +178,7 @@ class Program
         Console.WriteLine("  Chiffrement :");
         Console.WriteLine("    CryptoSoft.exe encrypt \"C:\\dossier\\fichier.pdf\" \"cléBase64==\"");
         Console.WriteLine("    → Si serveur actif: envoie la requête au serveur");
-        Console.WriteLine("    → Sinon: chiffre directement");
+        Console.WriteLine("    → Sinon: chiffre directement (fallback standalone)");
         Console.WriteLine();
         Console.WriteLine("  Déchiffrement :");
         Console.WriteLine("    CryptoSoft.exe decrypt \"C:\\dossier\\fichier.pdf.crypt\" \"cléBase64==\"");
@@ -201,8 +198,10 @@ class Program
         Console.WriteLine();
         Console.WriteLine("ARCHITECTURE :");
         Console.WriteLine("  • Mode Serveur : Un seul serveur, plusieurs clients simultanés");
+        Console.WriteLine("  • Mono-Instance : Les encryptions sont traitées une à une");
         Console.WriteLine("  • Mode Standalone : Si pas de serveur, chiffrement direct");
-        Console.WriteLine("  • Named Pipe : Communication inter-processus Windows");
+        Console.WriteLine("  • TCP localhost : Communication cross-platform (Win/Linux/Mac)");
+        Console.WriteLine($"  • Port par défaut : {CryptoServer.DefaultPort}");
     }
 
     private static string GetExitCodeDescription(int code)
