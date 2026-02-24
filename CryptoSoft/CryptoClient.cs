@@ -4,7 +4,7 @@ using System.Text;
 namespace CryptoSoft;
 
 /// <summary>
-/// Client TCP pour communiquer avec le serveur CryptoSoft (cross-platform).
+/// TCP client to communicate with the CryptoSoft server (cross-platform).
 /// </summary>
 public class CryptoClient
 {
@@ -39,12 +39,12 @@ public class CryptoClient
         {
             using var client = new TcpClient();
 
-            // Connexion au serveur avec timeout
+            // Connect to server with timeout
             var connectTask = client.ConnectAsync(System.Net.IPAddress.Loopback, _port);
             if (!connectTask.Wait(_timeoutMs))
             {
                 return new CryptoResponse(false, 6, stopwatch.ElapsedMilliseconds,
-                    "Timeout: impossible de se connecter au serveur CryptoSoft");
+                    "Timeout: unable to connect to CryptoSoft server");
             }
 
             using var stream = client.GetStream();
@@ -54,25 +54,25 @@ public class CryptoClient
             using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
             using var reader = new StreamReader(stream, Encoding.UTF8);
 
-            // Envoyer la requête
+            // Send the request
             writer.WriteLine($"{operation}|{filePath}|{key}");
 
-            // Lire la réponse
+            // Read the response
             var response = reader.ReadLine();
             stopwatch.Stop();
 
             if (string.IsNullOrEmpty(response))
             {
                 return new CryptoResponse(false, 3, stopwatch.ElapsedMilliseconds,
-                    "Pas de réponse du serveur");
+                    "No response from server");
             }
 
-            // Parser la réponse (format: "OK|0|durationMs" ou "ERROR|code|message")
+            // Parse the response (format: "OK|0|durationMs" or "ERROR|code|message")
             var parts = response.Split('|');
             if (parts.Length < 3)
             {
                 return new CryptoResponse(false, 3, stopwatch.ElapsedMilliseconds,
-                    "Réponse invalide du serveur");
+                    "Invalid response from server");
             }
 
             var status = parts[0];
@@ -91,27 +91,27 @@ public class CryptoClient
         catch (SocketException ex)
         {
             return new CryptoResponse(false, 6, stopwatch.ElapsedMilliseconds,
-                $"Erreur connexion: {ex.Message}");
+                $"Connection error: {ex.Message}");
         }
         catch (TimeoutException)
         {
             return new CryptoResponse(false, 6, stopwatch.ElapsedMilliseconds,
-                "Timeout: impossible de se connecter au serveur CryptoSoft");
+                "Timeout: unable to connect to CryptoSoft server");
         }
         catch (IOException ex)
         {
             return new CryptoResponse(false, 3, stopwatch.ElapsedMilliseconds,
-                $"Erreur I/O: {ex.Message}");
+                $"I/O error: {ex.Message}");
         }
         catch (Exception ex)
         {
             return new CryptoResponse(false, 3, stopwatch.ElapsedMilliseconds,
-                $"Erreur: {ex.Message}");
+                $"Error: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// Vérifie si le serveur est en cours d'exécution.
+    /// Checks if the server is running.
     /// </summary>
     public static bool IsServerRunning(int port = DefaultPort)
     {
@@ -131,4 +131,3 @@ public class CryptoClient
         }
     }
 }
-

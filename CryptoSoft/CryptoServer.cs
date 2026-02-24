@@ -6,8 +6,8 @@ using System.Text;
 namespace CryptoSoft;
 
 /// <summary>
-/// Serveur CryptoSoft mono-instance utilisant TCP localhost (cross-platform).
-/// Accepte plusieurs connexions simultanées mais traite les encryptions une à une.
+/// CryptoSoft single-instance server using TCP localhost (cross-platform).
+/// Accepts multiple simultaneous connections but processes encryptions one at a time.
 /// </summary>
 public class CryptoServer
 {
@@ -16,7 +16,7 @@ public class CryptoServer
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<string, Task> _activeOperations = new();
 
-    // SemaphoreSlim pour garantir une seule encryption à la fois (mono-instance)
+    // SemaphoreSlim to guarantee one encryption at a time (single-instance)
     private readonly SemaphoreSlim _encryptionSemaphore = new(1, 1);
 
     private readonly int _port;
@@ -27,7 +27,7 @@ public class CryptoServer
     }
 
     /// <summary>
-    /// Vérifie si le serveur est en cours d'exécution via le port TCP.
+    /// Checks if the server is running via the TCP port.
     /// </summary>
     public static bool IsServerRunning(int port = DefaultPort)
     {
@@ -49,7 +49,7 @@ public class CryptoServer
 
     public int Run()
     {
-        // Utiliser un Mutex pour éviter plusieurs serveurs sur la même machine (Windows only)
+        // Use a Mutex to prevent multiple servers on the same machine (Windows only)
         Mutex? mutex = null;
         bool createdNew = false;
 
@@ -58,7 +58,7 @@ public class CryptoServer
             mutex = new Mutex(true, MutexName, out createdNew);
             if (!createdNew)
             {
-                Console.Error.WriteLine("CryptoSoft Server est déjà en cours d'exécution.");
+                Console.Error.WriteLine("CryptoSoft Server is already running.");
                 return 6;
             }
         }
@@ -69,31 +69,31 @@ public class CryptoServer
             listener = new TcpListener(IPAddress.Loopback, _port);
             listener.Start();
 
-            Console.WriteLine("🔐 CryptoSoft Server démarré");
+            Console.WriteLine("CryptoSoft Server started");
             Console.WriteLine($"   Port: {_port} (TCP localhost)");
             Console.WriteLine("   Cross-platform: Windows, Linux, macOS");
-            Console.WriteLine("   Mono-instance: Les encryptions sont traitées une à une");
-            Console.WriteLine("   En attente de connexions...");
-            Console.WriteLine("   Appuyez sur Ctrl+C pour arrêter.");
+            Console.WriteLine("   Single-instance: Encryptions are processed one at a time");
+            Console.WriteLine("   Waiting for connections...");
+            Console.WriteLine("   Press Ctrl+C to stop.");
             Console.WriteLine();
 
             Console.CancelKeyPress += (_, e) =>
             {
                 e.Cancel = true;
                 _cts.Cancel();
-                Console.WriteLine("\n⏹ Arrêt demandé...");
+                Console.WriteLine("\nShutdown requested...");
             };
 
-            // Accepter plusieurs connexions en parallèle
+            // Accept multiple connections in parallel
             while (!_cts.Token.IsCancellationRequested)
             {
                 try
                 {
-                    // Polling pour pouvoir réagir à l'annulation
+                    // Polling to be able to react to cancellation
                     if (listener.Pending())
                     {
                         var client = listener.AcceptTcpClient();
-                        // Stocker la vraie task pour le shutdown propre
+                        // Store the actual task for clean shutdown
                         var operationId = Guid.NewGuid().ToString();
                         var task = Task.Run(() => HandleClientAsync(client, operationId), _cts.Token);
                         _activeOperations[operationId] = task;
@@ -115,24 +115,24 @@ public class CryptoServer
         }
         catch (SocketException ex)
         {
-            Console.Error.WriteLine($"Erreur: Port {_port} déjà utilisé ou indisponible.");
-            Console.Error.WriteLine($"Détails: {ex.Message}");
+            Console.Error.WriteLine($"Error: Port {_port} already in use or unavailable.");
+            Console.Error.WriteLine($"Details: {ex.Message}");
             return 3;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Erreur serveur: {ex.Message}");
+            Console.Error.WriteLine($"Server error: {ex.Message}");
             return 3;
         }
         finally
         {
             listener?.Stop();
 
-            // Attendre que toutes les opérations en cours se terminent
+            // Wait for all ongoing operations to complete
             var tasks = _activeOperations.Values.ToArray();
             if (tasks.Length > 0)
             {
-                Console.WriteLine($"⏳ Attente de {tasks.Length} opération(s) en cours...");
+                Console.WriteLine($"Waiting for {tasks.Length} ongoing operation(s)...");
                 Task.WaitAll(tasks, TimeSpan.FromSeconds(30));
             }
 
@@ -145,7 +145,7 @@ public class CryptoServer
             }
         }
 
-        Console.WriteLine("✓ CryptoSoft Server arrêté proprement.");
+        Console.WriteLine("CryptoSoft Server stopped cleanly.");
         return 0;
     }
 
@@ -161,18 +161,18 @@ public class CryptoServer
                 stream.ReadTimeout = 300000; // 5 minutes
                 stream.WriteTimeout = 300000;
 
-                // Lire la requête (format: "operation|filePath|key")
+                // Read the request (format: "operation|filePath|key")
                 var request = await reader.ReadLineAsync();
                 if (string.IsNullOrEmpty(request))
                 {
-                    await writer.WriteLineAsync("ERROR|2|Requête vide");
+                    await writer.WriteLineAsync("ERROR|2|Empty request");
                     return;
                 }
 
                 var parts = request.Split('|');
                 if (parts.Length < 3)
                 {
-                    await writer.WriteLineAsync("ERROR|2|Format invalide. Attendu: operation|filePath|key");
+                    await writer.WriteLineAsync("ERROR|2|Invalid format. Expected: operation|filePath|key");
                     return;
                 }
 
@@ -180,15 +180,15 @@ public class CryptoServer
                 var filePath = parts[1];
                 var key = parts[2];
 
-                Console.WriteLine($"📥 Requête reçue: {operation} {Path.GetFileName(filePath)}");
+                Console.WriteLine($"Request received: {operation} {Path.GetFileName(filePath)}");
 
-                // Attendre le sémaphore pour garantir mono-instance des encryptions
-                Console.WriteLine("   ⏳ En attente du verrou mono-instance...");
+                // Wait for semaphore to guarantee single-instance encryption
+                Console.WriteLine("   Waiting for single-instance lock...");
                 await _encryptionSemaphore.WaitAsync(_cts.Token);
 
                 try
                 {
-                    Console.WriteLine("   🔒 Verrou acquis, traitement en cours...");
+                    Console.WriteLine("   Lock acquired, processing...");
                     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                     int exitCode;
 
@@ -202,7 +202,7 @@ public class CryptoServer
                     }
                     else
                     {
-                        await writer.WriteLineAsync($"ERROR|2|Opération inconnue: {operation}");
+                        await writer.WriteLineAsync($"ERROR|2|Unknown operation: {operation}");
                         return;
                     }
 
@@ -211,28 +211,28 @@ public class CryptoServer
                     if (exitCode == 0)
                     {
                         await writer.WriteLineAsync($"OK|0|{stopwatch.ElapsedMilliseconds}");
-                        Console.WriteLine($"   ✓ {operation} terminé en {stopwatch.ElapsedMilliseconds}ms");
+                        Console.WriteLine($"   {operation} completed in {stopwatch.ElapsedMilliseconds}ms");
                     }
                     else
                     {
                         await writer.WriteLineAsync($"ERROR|{exitCode}|{GetErrorMessage(exitCode)}");
-                        Console.WriteLine($"   ✗ {operation} échoué (code {exitCode})");
+                        Console.WriteLine($"   {operation} failed (code {exitCode})");
                     }
                 }
                 finally
                 {
                     _encryptionSemaphore.Release();
-                    Console.WriteLine("   🔓 Verrou libéré");
+                    Console.WriteLine("   Lock released");
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("   ⚠ Opération annulée (shutdown)");
+            Console.WriteLine("   Operation cancelled (shutdown)");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"   ✗ Erreur: {ex.Message}");
+            Console.Error.WriteLine($"   Error: {ex.Message}");
         }
         finally
         {
@@ -244,13 +244,12 @@ public class CryptoServer
     {
         return code switch
         {
-            1 => "Fichier introuvable",
-            2 => "Arguments invalides",
-            3 => "Erreur I/O",
-            4 => "Échec authentification GCM",
-            5 => "Clé invalide",
-            _ => $"Erreur inconnue ({code})"
+            1 => "File not found",
+            2 => "Invalid arguments",
+            3 => "I/O error",
+            4 => "GCM authentication failure",
+            5 => "Invalid key",
+            _ => $"Unknown error ({code})"
         };
     }
 }
-

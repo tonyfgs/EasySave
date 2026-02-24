@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using Application.Ports;
@@ -47,7 +47,7 @@ public class CryptoSoftAdapter : IEncryptionService
     {
         var key = _config.GetEncryptionKey();
 
-        // Si clé vide -> pas de chiffrement, succès immédiat
+        // If key is empty -> no encryption, immediate success
         if (string.IsNullOrWhiteSpace(key))
         {
             return new CryptoResult
@@ -59,7 +59,7 @@ public class CryptoSoftAdapter : IEncryptionService
             };
         }
 
-        // Tenter d'utiliser le serveur TCP, sinon fallback en standalone
+        // Try to use the TCP server, otherwise fallback to standalone
         var serverRunning = await EnsureServerRunningAsync();
 
         if (serverRunning)
@@ -68,7 +68,7 @@ public class CryptoSoftAdapter : IEncryptionService
         }
         else
         {
-            // Fallback: exécuter en mode standalone via Process
+            // Fallback: execute in standalone mode via Process
             return await ExecuteStandaloneAsync(operation, filePath, key);
         }
     }
@@ -80,10 +80,10 @@ public class CryptoSoftAdapter : IEncryptionService
             return true;
         }
 
-        // Tenter de démarrer le serveur
+        // Try to start the server
         lock (_serverStartLock)
         {
-            // Double-check après le lock
+            // Double-check after lock
             if (IsServerRunning())
             {
                 return true;
@@ -117,7 +117,7 @@ public class CryptoSoftAdapter : IEncryptionService
             }
         }
 
-        // Attendre que le serveur soit prêt (max 5 secondes)
+        // Wait for server to be ready (max 5 seconds)
         for (int i = 0; i < 50; i++)
         {
             await Task.Delay(100);
@@ -145,7 +145,7 @@ public class CryptoSoftAdapter : IEncryptionService
     }
 
     /// <summary>
-    /// Exécute l'opération via le serveur TCP avec retry async.
+    /// Executes the operation via the TCP server with async retry.
     /// </summary>
     private async Task<CryptoResult> ExecuteViaTcpAsync(string operation, string filePath, string key)
     {
@@ -157,13 +157,13 @@ public class CryptoSoftAdapter : IEncryptionService
         {
             var result = await SendTcpRequestAsync(operation, filePath, key);
 
-            // Si succès ou erreur autre que connexion, retourner immédiatement
+            // If success or error other than connection issue, return immediately
             if (result.Success || result.ErrorCode != CryptoErrorCode.AlreadyRunning)
             {
                 return result;
             }
 
-            // Vérifier si on a atteint le nombre max de retries
+            // Check if max retries reached
             if (retryCount >= _maxRetries)
             {
                 return new CryptoResult
@@ -171,11 +171,11 @@ public class CryptoSoftAdapter : IEncryptionService
                     Success = false,
                     DurationMs = totalStopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.AlreadyRunning,
-                    ErrorMessage = $"Impossible de se connecter au serveur après {_maxRetries} tentatives"
+                    ErrorMessage = $"Unable to connect to server after {_maxRetries} attempts"
                 };
             }
 
-            // Vérifier si on dépasse le timeout total
+            // Check if total timeout exceeded
             if (totalStopwatch.ElapsedMilliseconds + currentDelayMs > _timeoutMs)
             {
                 return new CryptoResult
@@ -183,11 +183,11 @@ public class CryptoSoftAdapter : IEncryptionService
                     Success = false,
                     DurationMs = totalStopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.Timeout,
-                    ErrorMessage = "Timeout atteint en attendant le serveur CryptoSoft"
+                    ErrorMessage = "Timeout reached waiting for CryptoSoft server"
                 };
             }
 
-            // Exponential backoff avec Task.Delay (non-bloquant)
+            // Exponential backoff with Task.Delay (non-blocking)
             await Task.Delay(currentDelayMs);
             currentDelayMs = Math.Min(currentDelayMs * 2, 5000);
             retryCount++;
@@ -210,7 +210,7 @@ public class CryptoSoftAdapter : IEncryptionService
                     Success = false,
                     DurationMs = stopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.AlreadyRunning,
-                    ErrorMessage = "Timeout connexion au serveur"
+                    ErrorMessage = "Server connection timeout"
                 };
             }
 
@@ -221,10 +221,10 @@ public class CryptoSoftAdapter : IEncryptionService
             using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
             using var reader = new StreamReader(stream, Encoding.UTF8);
 
-            // Envoyer la requête
+            // Send the request
             await writer.WriteLineAsync($"{operation}|{filePath}|{key}");
 
-            // Lire la réponse
+            // Read the response
             var response = await reader.ReadLineAsync();
             stopwatch.Stop();
 
@@ -235,11 +235,11 @@ public class CryptoSoftAdapter : IEncryptionService
                     Success = false,
                     DurationMs = stopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.IoError,
-                    ErrorMessage = "Pas de réponse du serveur"
+                    ErrorMessage = "No response from server"
                 };
             }
 
-            // Parser la réponse (format: "OK|0|durationMs" ou "ERROR|code|message")
+            // Parse the response (format: "OK|0|durationMs" or "ERROR|code|message")
             var parts = response.Split('|');
             if (parts.Length < 3)
             {
@@ -248,7 +248,7 @@ public class CryptoSoftAdapter : IEncryptionService
                     Success = false,
                     DurationMs = stopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.IoError,
-                    ErrorMessage = "Réponse invalide du serveur"
+                    ErrorMessage = "Invalid response from server"
                 };
             }
 
@@ -284,7 +284,7 @@ public class CryptoSoftAdapter : IEncryptionService
                 Success = false,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = CryptoErrorCode.AlreadyRunning,
-                ErrorMessage = $"Erreur connexion: {ex.Message}"
+                ErrorMessage = $"Connection error: {ex.Message}"
             };
         }
         catch (Exception ex)
@@ -294,7 +294,7 @@ public class CryptoSoftAdapter : IEncryptionService
                 Success = false,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = CryptoErrorCode.IoError,
-                ErrorMessage = $"Erreur TCP: {ex.Message}"
+                ErrorMessage = $"TCP error: {ex.Message}"
             };
         }
     }
@@ -318,21 +318,21 @@ public class CryptoSoftAdapter : IEncryptionService
 
             process.Start();
 
-            // Attendre de manière asynchrone
+            // Wait asynchronously
             var completedTask = await Task.Run(() => process.WaitForExit(_timeoutMs));
             stopwatch.Stop();
 
             if (!completedTask)
             {
                 try { process.Kill(); }
-                catch { /* Ignorer */ }
+                catch { /* Ignore */ }
 
                 return new CryptoResult
                 {
                     Success = false,
                     DurationMs = stopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.Timeout,
-                    ErrorMessage = $"CryptoSoft timeout après {_timeoutMs}ms"
+                    ErrorMessage = $"CryptoSoft timeout after {_timeoutMs}ms"
                 };
             }
 
@@ -357,7 +357,7 @@ public class CryptoSoftAdapter : IEncryptionService
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = errorCode,
                 ErrorMessage = string.IsNullOrWhiteSpace(errorOutput)
-                    ? $"CryptoSoft {operation} échoué avec code {exitCode}"
+                    ? $"CryptoSoft {operation} failed with code {exitCode}"
                     : errorOutput.Trim()
             };
         }
@@ -369,7 +369,7 @@ public class CryptoSoftAdapter : IEncryptionService
                 Success = false,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = CryptoErrorCode.Unknown,
-                ErrorMessage = $"Erreur lors de l'exécution de CryptoSoft: {ex.Message}"
+                ErrorMessage = $"Error during CryptoSoft execution: {ex.Message}"
             };
         }
     }
