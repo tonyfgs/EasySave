@@ -5,7 +5,7 @@ using Application.Ports;
 
 namespace Infrastructure;
 
-public class CryptoSoftAdapter : IEncryptionService
+public class CryptoSoftAdapter : IEncryptionService, IDisposable
 {
     private readonly IEncryptionConfig _config;
     private readonly string _cryptoSoftPath;
@@ -13,9 +13,14 @@ public class CryptoSoftAdapter : IEncryptionService
     private readonly int _maxRetries;
     private readonly int _initialRetryDelayMs;
     private readonly int _port;
+    private readonly string _serverArguments;
 
-    private static readonly object _serverStartLock = new();
-    private static Process? _serverProcess;
+    private readonly object _serverStartLock = new();
+    private Process? _serverProcess;
+    private readonly StderrRingBuffer _stderrBuffer = new(200);
+    private DataReceivedEventHandler? _stdoutHandler;
+    private DataReceivedEventHandler? _stderrHandler;
+    private bool _disposed;
 
     public CryptoSoftAdapter(
         IEncryptionConfig config,
@@ -23,7 +28,8 @@ public class CryptoSoftAdapter : IEncryptionService
         int timeoutMs = 300000,
         int maxRetries = 5,
         int initialRetryDelayMs = 100,
-        int port = 19283)
+        int port = 19283,
+        string serverArguments = "server")
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _cryptoSoftPath = cryptoSoftPath ?? throw new ArgumentNullException(nameof(cryptoSoftPath));
@@ -31,6 +37,7 @@ public class CryptoSoftAdapter : IEncryptionService
         _maxRetries = maxRetries;
         _initialRetryDelayMs = initialRetryDelayMs;
         _port = port;
+        _serverArguments = serverArguments;
     }
 
     public CryptoResult EncryptFile(string filePath)
@@ -41,6 +48,64 @@ public class CryptoSoftAdapter : IEncryptionService
     public CryptoResult DecryptFile(string filePath)
     {
         return ExecuteAsync("decrypt", filePath).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Returns the last stderr lines from the most recent server startup attempt.
+    /// Useful for diagnosing why the server failed to start or connect.
+    /// </summary>
+    public IReadOnlyList<string> GetServerStderrLines() => _stderrBuffer.GetLines();
+
+    /// <summary>
+    /// Stops the server process and cleans up handlers.
+    /// Does not dispose the adapter itself, allowing it to be restarted.
+    /// </summary>
+    public void StopServer()
+    {
+        lock (_serverStartLock)
+        {
+            UnsubscribeHandlers();
+
+            if (_serverProcess is not null)
+            {
+                if (!_serverProcess.HasExited)
+                {
+                    try { _serverProcess.Kill(entireProcessTree: true); }
+                    catch { /* Process may have already exited */ }
+
+                    try { _serverProcess.WaitForExit(3000); }
+                    catch { /* Timeout is acceptable */ }
+                }
+
+                _serverProcess.Dispose();
+                _serverProcess = null;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        UnsubscribeHandlers();
+
+        if (_serverProcess is not null)
+        {
+            if (!_serverProcess.HasExited)
+            {
+                try { _serverProcess.Kill(entireProcessTree: true); }
+                catch { /* Process may have already exited */ }
+
+                try { _serverProcess.WaitForExit(3000); }
+                catch { /* Timeout is acceptable */ }
+            }
+
+            _serverProcess.Dispose();
+            _serverProcess = null;
+        }
+
+        _stderrBuffer.Clear();
     }
 
     private async Task<CryptoResult> ExecuteAsync(string operation, string filePath)
@@ -96,20 +161,46 @@ public class CryptoSoftAdapter : IEncryptionService
                     return false;
                 }
 
+                // Clear buffer for this startup attempt
+                _stderrBuffer.Clear();
+
+                // Unsubscribe old handlers if any (handles restart case)
+                UnsubscribeHandlers();
+
                 _serverProcess = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = _cryptoSoftPath,
-                        Arguments = "server",
+                        Arguments = _serverArguments,
                         UseShellExecute = false,
                         CreateNoWindow = true,
-                        RedirectStandardOutput = false,
-                        RedirectStandardError = false
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
                     }
                 };
 
+                // Create and subscribe handler delegates for async draining
+                _stdoutHandler = (sender, e) =>
+                {
+                    // Drain stdout to prevent OS pipe buffer from filling.
+                    // We intentionally discard the content.
+                };
+                _stderrHandler = (sender, e) =>
+                {
+                    if (e.Data is not null)
+                        _stderrBuffer.Append(e.Data);
+                };
+
+                _serverProcess.OutputDataReceived += _stdoutHandler;
+                _serverProcess.ErrorDataReceived += _stderrHandler;
+
                 _serverProcess.Start();
+
+                // Begin async reading IMMEDIATELY after Start() to prevent deadlocks.
+                // These callbacks drain the OS pipe buffers as data arrives.
+                _serverProcess.BeginOutputReadLine();
+                _serverProcess.BeginErrorReadLine();
             }
             catch
             {
@@ -128,6 +219,19 @@ public class CryptoSoftAdapter : IEncryptionService
         }
 
         return false;
+    }
+
+    private void UnsubscribeHandlers()
+    {
+        if (_serverProcess is not null)
+        {
+            if (_stdoutHandler is not null)
+                _serverProcess.OutputDataReceived -= _stdoutHandler;
+            if (_stderrHandler is not null)
+                _serverProcess.ErrorDataReceived -= _stderrHandler;
+        }
+        _stdoutHandler = null;
+        _stderrHandler = null;
     }
 
     private bool IsServerRunning()
@@ -299,6 +403,11 @@ public class CryptoSoftAdapter : IEncryptionService
         }
     }
 
+    /// <summary>
+    /// Fallback: executes CryptoSoft as a short-lived standalone process.
+    /// Uses ReadToEndAsync on stderr which is acceptable for short-lived processes
+    /// (the "no synchronous read" constraint targets the long-lived server process).
+    /// </summary>
     private async Task<CryptoResult> ExecuteStandaloneAsync(string operation, string filePath, string key)
     {
         var stopwatch = Stopwatch.StartNew();
