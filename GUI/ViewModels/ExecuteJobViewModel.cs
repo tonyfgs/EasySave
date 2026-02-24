@@ -23,9 +23,10 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
     private int _filesProcessed;
     private int _totalFiles;
 
-    public ObservableCollection<BackupJob> AvailableJobs { get; } = new();
+    public ObservableCollection<JobProgress> AvailableJobs { get; } = new();
     public ObservableCollection<BackupJob> SelectedJobs { get; } = new();
     public ObservableCollection<JobExecutionResult> Results { get; } = new();
+
 
     public bool IsExecuting
     {
@@ -105,8 +106,11 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
 
         var jobs = _jobManagementService.ListJobs();
         foreach (var job in jobs)
-            AvailableJobs.Add(job);
-
+        {
+            var currentProgress = new JobProgress(new StateSnapshot { Name = job.Name }, job);
+            AvailableJobs.Add(currentProgress);
+        }
+        
         if (AvailableJobs.Count == 0)
             StatusMessage = "No jobs available to execute.";
     }
@@ -115,10 +119,13 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
     {
         if (job is null) return;
 
-        if (SelectedJobs.Contains(job))
-            SelectedJobs.Remove(job);
-        else
+        var availableJob = AvailableJobs.FirstOrDefault(a => a.Job == job);
+        if (availableJob is null) return;
+
+        if (availableJob.IsSelected && !SelectedJobs.Contains(job))
             SelectedJobs.Add(job);
+        else if (!availableJob.IsSelected)
+            SelectedJobs.Remove(job);
 
         ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
     }
@@ -257,6 +264,8 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
             OverallProgress = snapshot.Progress;
             FilesProcessed = snapshot.TotalFiles - snapshot.FilesRemaining;
             TotalFiles = snapshot.TotalFiles;
+            JobProgress? jobToUpdate = AvailableJobs.FirstOrDefault(j => j.Name == snapshot.Name);
+            jobToUpdate?.Update(snapshot);
 
             if (!string.IsNullOrEmpty(snapshot.CurrentSourceFile))
             {

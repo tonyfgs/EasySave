@@ -25,18 +25,21 @@
                            FontSize="16" TextColor="Gray" Margin="20"/>
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="model:BackupJob">
+                    <DataTemplate x:DataType="vm:JobProgress">
                         <Grid Padding="15,8" ColumnDefinitions="Auto,*,Auto">
                             <CheckBox Grid.Column="0"
                                       IsEnabled="{Binding Source={RelativeSource AncestorType={x:Type vm:ExecuteJobViewModel}}, Path=IsExecuting, Converter={StaticResource InverseBoolConverter}}"
                                       CheckedChanged="OnJobCheckedChanged"
                                       VerticalOptions="Center"/>
                             <VerticalStackLayout Grid.Column="1" Spacing="2" Margin="10,0">
-                                <Label Text="{Binding Name}" FontSize="15" FontAttributes="Bold"/>
-                                <Label Text="{Binding SourcePath}" FontSize="11" TextColor="Gray"/>
+                                <Label Text="{Binding Job.Name}" FontSize="15" FontAttributes="Bold"/>
+                                <Label Text="{Binding Job.SourcePath}" FontSize="11" TextColor="Gray"/>
+                                <ProgressBar Progress="{Binding Progress, Converter={StaticResource IntToDoubleConverter}}"
+                                             ProgressColor="#1976D2"
+                                             IsVisible="{Binding IsSelected}"/>
                             </VerticalStackLayout>
                             <Label Grid.Column="2"
-                                   Text="{Binding Type}"
+                                   Text="{Binding Job.Type}"
                                    FontSize="12" TextColor="#1976D2"
                                    VerticalOptions="Center"/>
                         </Grid>

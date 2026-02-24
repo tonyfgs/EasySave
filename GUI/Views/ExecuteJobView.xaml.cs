@@ -11,10 +11,11 @@ public partial class ExecuteJobView : ContentView
 
     private void OnJobCheckedChanged(object? sender, CheckedChangedEventArgs e)
     {
-        if (sender is CheckBox checkBox && checkBox.BindingContext is BackupJob job)
+        if (sender is CheckBox checkBox && checkBox.BindingContext is GUI.ViewModels.JobProgress entry)
         {
+            entry.IsSelected = e.Value;
             var vm = BindingContext as GUI.ViewModels.ExecuteJobViewModel;
-            vm?.ToggleJobSelectionCommand.Execute(job);
+            vm?.ToggleJobSelectionCommand.Execute(entry.Job);
         }
     }
 }
