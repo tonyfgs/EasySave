@@ -80,36 +80,44 @@ public class CryptoSoftAdapter : IEncryptionService, IDisposable
                 _serverProcess.Dispose();
                 _serverProcess = null;
             }
+
+            _stderrBuffer.Clear();
         }
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-
-        UnsubscribeHandlers();
-
-        if (_serverProcess is not null)
+        lock (_serverStartLock)
         {
-            if (!_serverProcess.HasExited)
-            {
-                try { _serverProcess.Kill(entireProcessTree: true); }
-                catch { /* Process may have already exited */ }
+            if (_disposed) return;
+            _disposed = true;
 
-                try { _serverProcess.WaitForExit(3000); }
-                catch { /* Timeout is acceptable */ }
+            UnsubscribeHandlers();
+
+            if (_serverProcess is not null)
+            {
+                if (!_serverProcess.HasExited)
+                {
+                    try { _serverProcess.Kill(entireProcessTree: true); }
+                    catch { /* Process may have already exited */ }
+
+                    try { _serverProcess.WaitForExit(3000); }
+                    catch { /* Timeout is acceptable */ }
+                }
+
+                _serverProcess.Dispose();
+                _serverProcess = null;
             }
 
-            _serverProcess.Dispose();
-            _serverProcess = null;
+            _stderrBuffer.Clear();
         }
-
-        _stderrBuffer.Clear();
     }
 
     private async Task<CryptoResult> ExecuteAsync(string operation, string filePath)
     {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(CryptoSoftAdapter));
+
         var key = _config.GetEncryptionKey();
 
         // If key is empty -> no encryption, immediate success
