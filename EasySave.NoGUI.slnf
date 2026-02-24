@@ -13,7 +13,8 @@
       "Test/ApplicationTest/ApplicationTest.csproj",
       "Test/LoggerTest/LoggerTest.csproj",
       "Test/InfrastructureTest/InfrastructureTest.csproj",
-      "Test/ConsoleTest/ConsoleTest.csproj"
+      "Test/ConsoleTest/ConsoleTest.csproj",
+      "Test/FakeCryptoServer/FakeCryptoServer.csproj"
     ]
   }
 }

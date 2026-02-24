@@ -91,7 +91,7 @@ public class StderrRingBufferTests
     }
 
     [Fact]
-    public void ThreadSafety_ConcurrentAppends()
+    public async Task ThreadSafety_ConcurrentAppends()
     {
         var buffer = new StderrRingBuffer(capacity: 200);
         var tasks = new Task[10];
@@ -106,7 +106,7 @@ public class StderrRingBufferTests
             });
         }
 
-        Task.WaitAll(tasks);
+        await Task.WhenAll(tasks);
 
         Assert.True(buffer.Count <= 200);
         Assert.True(buffer.Count > 0);
