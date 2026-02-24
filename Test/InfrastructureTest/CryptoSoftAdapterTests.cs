@@ -261,6 +261,113 @@ public class CryptoSoftAdapterTests : IDisposable
         Assert.Equal(CryptoErrorCode.None, result.ErrorCode);
     }
 
+    /// <summary>
+    /// Task 2 (CRITICAL C2): After Dispose(), calling EncryptFile should NOT restart the server.
+    /// BUG: ExecuteAsync does not check _disposed, so it creates a new Process — resource leak.
+    /// </summary>
+    [Fact]
+    public void EncryptFile_AfterDispose_ReturnsError()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port);
+
+        var result = _adapter.EncryptFile("/dev/null");
+        Assert.True(result.Success, $"Initial request failed: {result.ErrorMessage}");
+
+        _adapter.Dispose();
+
+        CryptoResult? postResult = null;
+        try
+        {
+            postResult = _adapter.EncryptFile("/dev/null");
+        }
+        catch (ObjectDisposedException)
+        {
+            // ObjectDisposedException is the expected .NET pattern — test passes
+            _adapter = null;
+            return;
+        }
+        finally
+        {
+            // Clean up any leaked server process (the bug starts a new one)
+            try { _adapter?.StopServer(); } catch { }
+        }
+
+        Assert.False(postResult!.Success,
+            "EncryptFile after Dispose should not succeed — the adapter restarted the server (resource leak)");
+        _adapter = null;
+    }
+
+    /// <summary>
+    /// Task 4 (HIGH H4): StopServer() must clear the stderr buffer so lines are scoped
+    /// to the current startup attempt only. BUG: StopServer() does not call _stderrBuffer.Clear().
+    /// </summary>
+    [Fact]
+    public void StopServer_ClearsStderrBuffer()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=10 --stderr-count=10");
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(2000);
+
+        var linesBefore = _adapter.GetServerStderrLines();
+        Assert.NotEmpty(linesBefore);
+
+        _adapter.StopServer();
+
+        // After StopServer, buffer should be cleared for next startup attempt scoping
+        var linesAfter = _adapter.GetServerStderrLines();
+        Assert.Empty(linesAfter);
+    }
+
+    /// <summary>
+    /// Task 5: When server startup fails (process runs but never listens on TCP),
+    /// GetServerStderrLines() must expose exactly the last 200 stderr lines,
+    /// in chronological order, scoped to the failing attempt only.
+    /// Requires FakeCryptoServer --no-listen flag.
+    /// </summary>
+    [Fact]
+    public void StartupFailure_ExposesLast200StderrLines()
+    {
+        var port = GetAvailablePort();
+        // --no-listen: FakeCryptoServer emits stderr but never binds TCP
+        _adapter = new CryptoSoftAdapter(
+            _configMock.Object,
+            cryptoSoftPath: _fakeServerPath,
+            timeoutMs: 10000,
+            port: port,
+            serverArguments: $"server --port={port} --stderr-rate=100 --stderr-count=250 --no-listen");
+
+        // Will fail to connect (server never listens), falls back to standalone which also fails
+        _adapter.EncryptFile("/dev/null");
+
+        // Server emitted 250 stderr lines; ring buffer capacity = 200 → keeps last 200
+        var lines = _adapter.GetServerStderrLines();
+        Assert.Equal(200, lines.Count);
+
+        // Verify chronological order: lines should be numbered 51..250
+        var numberedLines = lines
+            .Where(l => l.Contains("[STDERR] line "))
+            .Select(l =>
+            {
+                var numStr = l.Split("line ").Last();
+                return int.TryParse(numStr, out var n) ? n : -1;
+            })
+            .Where(n => n > 0)
+            .ToList();
+
+        Assert.NotEmpty(numberedLines);
+        for (int i = 1; i < numberedLines.Count; i++)
+        {
+            Assert.True(numberedLines[i] > numberedLines[i - 1],
+                $"Stderr lines not chronological: {numberedLines[i - 1]} followed by {numberedLines[i]}");
+        }
+
+        // First numbered line should be 51 (oldest after 250 written to 200-capacity buffer)
+        Assert.Equal(51, numberedLines[0]);
+    }
+
     private static void EnsureDotnetRootIsSet()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_ROOT")))

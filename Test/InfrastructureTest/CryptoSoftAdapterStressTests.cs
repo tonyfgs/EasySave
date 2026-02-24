@@ -99,7 +99,7 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
         var warmupResult = _adapter.EncryptFile("/dev/null");
         Assert.True(warmupResult.Success, $"Baseline warmup failed: {warmupResult.ErrorMessage}");
 
-        var baselineLatencies = await RunConcurrentRequests(_adapter, RunDuration);
+        var (baselineLatencies, baselineTotal, baselineFailed) = await RunConcurrentRequests(_adapter, RunDuration);
 
         _adapter.Dispose();
         _adapter = null;
@@ -117,7 +117,7 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
         var stressWarmupResult = _adapter.EncryptFile("/dev/null");
         Assert.True(stressWarmupResult.Success, $"Stress warmup failed: {stressWarmupResult.ErrorMessage}");
 
-        var stressLatencies = await RunConcurrentRequests(_adapter, RunDuration);
+        var (stressLatencies, stressTotal, stressFailed) = await RunConcurrentRequests(_adapter, RunDuration);
 
         _adapter.Dispose();
         _adapter = null;
@@ -130,24 +130,34 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
 
         var baselineP95 = Percentile(baselineSorted, 0.95);
         var baselineP99 = Percentile(baselineSorted, 0.99);
+        var baselineMax = baselineSorted[^1];
         var stressP95 = Percentile(stressSorted, 0.95);
         var stressP99 = Percentile(stressSorted, 0.99);
         var stressMax = stressSorted[^1];
 
         // --- ASSERTIONS ---
+
+        // Baseline max must also not exceed timeout (task 7)
+        Assert.True(baselineMax <= MaxTimeoutMs,
+            $"Baseline max latency exceeded timeout: {baselineMax:F2}ms (limit: {MaxTimeoutMs}ms). " +
+            $"Baseline: total={baselineTotal}, failed={baselineFailed}, success={baselineSorted.Length}");
+
         var deltaP95 = stressP95 - baselineP95;
         var deltaP99 = stressP99 - baselineP99;
 
         Assert.True(deltaP95 <= 50.0,
             $"p95 delta too high: stress p95={stressP95:F2}ms - baseline p95={baselineP95:F2}ms = {deltaP95:F2}ms (limit: 50ms). " +
-            $"Baseline samples={baselineSorted.Length}, Stress samples={stressSorted.Length}");
+            $"Baseline: total={baselineTotal}, failed={baselineFailed}, success={baselineSorted.Length}. " +
+            $"Stress: total={stressTotal}, failed={stressFailed}, success={stressSorted.Length}");
 
         Assert.True(deltaP99 <= 150.0,
             $"p99 delta too high: stress p99={stressP99:F2}ms - baseline p99={baselineP99:F2}ms = {deltaP99:F2}ms (limit: 150ms). " +
-            $"Baseline samples={baselineSorted.Length}, Stress samples={stressSorted.Length}");
+            $"Baseline: total={baselineTotal}, failed={baselineFailed}, success={baselineSorted.Length}. " +
+            $"Stress: total={stressTotal}, failed={stressFailed}, success={stressSorted.Length}");
 
         Assert.True(stressMax <= MaxTimeoutMs,
-            $"Max latency under stress exceeded timeout: {stressMax:F2}ms (limit: {MaxTimeoutMs}ms)");
+            $"Max latency under stress exceeded timeout: {stressMax:F2}ms (limit: {MaxTimeoutMs}ms). " +
+            $"Stress: total={stressTotal}, failed={stressFailed}, success={stressSorted.Length}");
 
         // No deadlock: if we reach this point, no deadlock or hang occurred
         // (the test would have timed out otherwise)
@@ -157,10 +167,14 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
     /// Runs <see cref="ConcurrentClients"/> concurrent tasks, each performing encrypt requests
     /// in a tight loop for the specified duration. Files are chosen via deterministic round-robin
     /// from the corpus. Each request measures round-trip TCP latency.
+    /// Returns (latencies, totalRequests, failedRequests).
     /// </summary>
-    private async Task<ConcurrentBag<double>> RunConcurrentRequests(CryptoSoftAdapter adapter, TimeSpan duration)
+    private async Task<(ConcurrentBag<double> latencies, int totalRequests, int failedRequests)>
+        RunConcurrentRequests(CryptoSoftAdapter adapter, TimeSpan duration)
     {
         var latencies = new ConcurrentBag<double>();
+        var totalRequests = 0;
+        var failedRequests = 0;
         var deadline = Stopwatch.StartNew();
 
         var tasks = Enumerable.Range(0, ConcurrentClients).Select(clientIndex =>
@@ -172,8 +186,6 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
 
                 while (deadline.Elapsed < duration)
                 {
-                    // Deterministic round-robin file selection:
-                    // Each client starts at its own offset and increments
                     var fileIndex = (clientIndex + requestIndex * ConcurrentClients) % corpusLength;
                     var filePath = _corpus.FilePaths[fileIndex];
 
@@ -181,9 +193,15 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
                     var result = adapter.EncryptFile(filePath);
                     sw.Stop();
 
+                    Interlocked.Increment(ref totalRequests);
+
                     if (result.Success)
                     {
                         latencies.Add(sw.Elapsed.TotalMilliseconds);
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref failedRequests);
                     }
 
                     requestIndex++;
@@ -192,7 +210,7 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
         }).ToArray();
 
         await Task.WhenAll(tasks);
-        return latencies;
+        return (latencies, totalRequests, failedRequests);
     }
 
     /// <summary>
