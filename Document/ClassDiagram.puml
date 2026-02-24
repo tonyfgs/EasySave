@@ -442,6 +442,36 @@ package "Infrastructure" #E3F2FD {
     + DecryptFile(filePath: string): CryptoResult
   }
 
+  class StderrRingBuffer {
+    - _capacity: int
+    - _buffer: Queue<string>
+    - _lock: object
+    + StderrRingBuffer(capacity: int)
+    + Append(line: string): void
+    + GetLines(): IReadOnlyList<string>
+    + Clear(): void
+    + Count: int
+  }
+
+  class CryptoSoftAdapter {
+    - _config: IEncryptionConfig
+    - _cryptoSoftPath: string
+    - _timeoutMs: int
+    - _port: int
+    - _serverArguments: string
+    - _serverProcess: Process?
+    - _stderrBuffer: StderrRingBuffer
+    - _stdoutHandler: DataReceivedEventHandler?
+    - _stderrHandler: DataReceivedEventHandler?
+    - _disposed: bool
+    + CryptoSoftAdapter(config: IEncryptionConfig,\n\t cryptoSoftPath: string,\n\t timeoutMs: int, port: int,\n\t serverArguments: string)
+    + EncryptFile(filePath: string): CryptoResult
+    + DecryptFile(filePath: string): CryptoResult
+    + GetServerStderrLines(): IReadOnlyList<string>
+    + StopServer(): void
+    + Dispose(): void
+  }
+
   class DisabledBusinessSoftwareDetector {
     + GetStatus(): BusinessSoftwareStatus
   }
@@ -877,6 +907,9 @@ ILanguageConfig <|.. AppConfiguration
 IEncryptionConfig <|.. AppConfiguration
 IBusinessSoftwareConfig <|.. AppConfiguration
 IEncryptionService <|.. DisabledEncryptionService
+IEncryptionService <|.. CryptoSoftAdapter
+CryptoSoftAdapter "1" --> "1" StderrRingBuffer : captures stderr via
+CryptoSoftAdapter "1" --> "1" IEncryptionConfig : reads config via
 IBusinessSoftwareDetector <|.. DisabledBusinessSoftwareDetector
 
 XmlTransferLogger "1" --> "1" IEasyLogger : delegates to
@@ -1102,6 +1135,15 @@ note bottom of JsonStateManager
   UpdateState() persists to disk immediately
   (real-time requirement from specification).
   No separate Save() method needed.
+end note
+
+note bottom of CryptoSoftAdapter
+  **IDisposable adapter**: manages CryptoSoft
+  server process lifecycle. Re-enables stdout/stderr
+  redirection with async draining (BeginOutputReadLine/
+  BeginErrorReadLine) to prevent deadlocks.
+  StderrRingBuffer retains last 200 lines per startup
+  attempt for failure diagnostics.
 end note
 
 note right of ObservableObject
