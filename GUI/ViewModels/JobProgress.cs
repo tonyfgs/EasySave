@@ -32,6 +32,4 @@ public sealed class JobProgress: ObservableObject
         _snapshot = snapshot;
         OnPropertyChanged(nameof(Progress));
     }
-
-
 }

@@ -74,6 +74,9 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
     public ICommand ExecuteSelectedCommand { get; }
     public ICommand ExecuteAllCommand { get; }
     public ICommand ToggleJobSelectionCommand { get; }
+    
+    public ICommand ExecutePausedCommand { get; }
+    public ICommand ExecuteStopCommand { get; }
 
     public ExecuteJobViewModel()
     {
