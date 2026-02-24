@@ -104,8 +104,8 @@ public class CryptoSoftAdapter : IEncryptionService
                         Arguments = "server",
                         UseShellExecute = false,
                         CreateNoWindow = true,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true
+                        RedirectStandardOutput = false,
+                        RedirectStandardError = false
                     }
                 };
 
