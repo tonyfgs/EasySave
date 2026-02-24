@@ -1,3 +1,4 @@
+using System.Reflection;
 using Application.Ports;
 using Infrastructure;
 using Moq;
@@ -92,8 +93,7 @@ public class CryptoSoftAdapterTests : IDisposable
         Thread.Sleep(5000);
 
         var lines = _adapter.GetServerStderrLines();
-        Assert.True(lines.Count <= 200,
-            $"Expected at most 200 lines but got {lines.Count}");
+        Assert.Equal(200, lines.Count);
     }
 
     [Fact]
@@ -227,7 +227,8 @@ public class CryptoSoftAdapterTests : IDisposable
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
         var baselineMemory = GC.GetTotalMemory(false);
 
-        // 100 measured cycles
+        // 100 measured cycles with intermediate samples every 25 cycles
+        var intermediateSamples = new List<(int cycle, long bytes)>();
         for (int i = 0; i < 100; i++)
         {
             var port = GetAvailablePort();
@@ -236,6 +237,14 @@ public class CryptoSoftAdapterTests : IDisposable
             Thread.Sleep(200);
             cycleAdapter.StopServer();
             Thread.Sleep(100);
+
+            if ((i + 1) % 25 == 0)
+            {
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+                intermediateSamples.Add((i + 1, GC.GetTotalMemory(false)));
+            }
         }
 
         // Double-GC for final measurement
@@ -245,8 +254,13 @@ public class CryptoSoftAdapterTests : IDisposable
         var finalMemory = GC.GetTotalMemory(false);
 
         var deltaBytes = finalMemory - baselineMemory;
+        var sampleReport = string.Join(", ", intermediateSamples.Select(s =>
+            $"cycle {s.cycle}: {(s.bytes - baselineMemory) / 1024.0 / 1024.0:F2}MB"));
         Assert.True(deltaBytes <= 5 * 1024 * 1024,
-            $"Memory grew by {deltaBytes / 1024.0 / 1024.0:F2}MB over 100 restart cycles (limit: 5MB)");
+            $"Memory grew by {deltaBytes / 1024.0 / 1024.0:F2}MB over 100 restart cycles (limit: 5MB). " +
+            $"Baseline: {baselineMemory / 1024.0 / 1024.0:F2}MB. " +
+            $"Intermediate deltas: [{sampleReport}]. " +
+            $"Final: {finalMemory / 1024.0 / 1024.0:F2}MB");
     }
 
     [Fact]
@@ -366,6 +380,80 @@ public class CryptoSoftAdapterTests : IDisposable
 
         // First numbered line should be 51 (oldest after 250 written to 200-capacity buffer)
         Assert.Equal(51, numberedLines[0]);
+    }
+
+    /// <summary>
+    /// Task 6: 100 restart cycles on the SAME adapter using StopServer()+EncryptFile().
+    /// Verifies: (1) each emitted stderr line is observed exactly once (no doubling),
+    /// (2) handler fields are non-null while running (1 per stream),
+    /// (3) handler fields are null after StopServer()/Dispose() (0 subscriptions).
+    /// </summary>
+    [Fact]
+    public void RestartCycles100_ExactlyOnceHandlerExecution()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=1000 --stderr-count=1");
+
+        // 5-cycle warm-up (discarded)
+        for (int i = 0; i < 5; i++)
+        {
+            var result = _adapter.EncryptFile("/dev/null");
+            Assert.True(result.Success, $"Warmup {i} failed: {result.ErrorMessage}");
+            Thread.Sleep(500);
+            _adapter.StopServer();
+            Thread.Sleep(200);
+        }
+
+        // 100 measured restart cycles on the SAME adapter instance
+        for (int cycle = 0; cycle < 100; cycle++)
+        {
+            var result = _adapter.EncryptFile("/dev/null");
+            Assert.True(result.Success, $"Cycle {cycle} failed: {result.ErrorMessage}");
+
+            // Verify subscriptions are active (1 per stream)
+            AssertHandlerFields(_adapter, expectedNonNull: true,
+                $"Cycle {cycle}: handlers should be non-null while running");
+
+            Thread.Sleep(500);
+
+            var lines = _adapter.GetServerStderrLines();
+            var stderrCount = lines.Count(l => l.Contains("[STDERR] line "));
+
+            // Each cycle emits exactly 1 [STDERR] line — doubled count = duplicate handlers
+            Assert.True(stderrCount <= 1,
+                $"Cycle {cycle}: Expected <= 1 [STDERR] line but got {stderrCount}. " +
+                $"This indicates duplicate handler subscriptions. Lines: {string.Join("; ", lines)}");
+
+            _adapter.StopServer();
+
+            // Verify subscriptions are 0 after StopServer
+            AssertHandlerFields(_adapter, expectedNonNull: false,
+                $"Cycle {cycle}: handlers should be null after StopServer");
+        }
+
+        // Final dispose
+        _adapter.Dispose();
+        AssertHandlerFields(_adapter, expectedNonNull: false,
+            "Handlers should be null after Dispose");
+        _adapter = null;
+    }
+
+    private static void AssertHandlerFields(CryptoSoftAdapter adapter, bool expectedNonNull, string context)
+    {
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var stdoutHandler = adapter.GetType().GetField("_stdoutHandler", flags)?.GetValue(adapter);
+        var stderrHandler = adapter.GetType().GetField("_stderrHandler", flags)?.GetValue(adapter);
+
+        if (expectedNonNull)
+        {
+            Assert.True(stdoutHandler is not null, $"{context}: _stdoutHandler is null");
+            Assert.True(stderrHandler is not null, $"{context}: _stderrHandler is null");
+        }
+        else
+        {
+            Assert.True(stdoutHandler is null, $"{context}: _stdoutHandler is not null");
+            Assert.True(stderrHandler is null, $"{context}: _stderrHandler is not null");
+        }
     }
 
     private static void EnsureDotnetRootIsSet()

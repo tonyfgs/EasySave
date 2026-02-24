@@ -159,6 +159,16 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
             $"Max latency under stress exceeded timeout: {stressMax:F2}ms (limit: {MaxTimeoutMs}ms). " +
             $"Stress: total={stressTotal}, failed={stressFailed}, success={stressSorted.Length}");
 
+        // Failure rate must be below 1% for both runs
+        var baselineFailureRate = baselineTotal > 0 ? (double)baselineFailed / baselineTotal : 0;
+        var stressFailureRate = stressTotal > 0 ? (double)stressFailed / stressTotal : 0;
+
+        Assert.True(baselineFailureRate < 0.01,
+            $"Baseline failure rate {baselineFailureRate:P2} exceeds 1% ({baselineFailed}/{baselineTotal})");
+
+        Assert.True(stressFailureRate < 0.01,
+            $"Stress failure rate {stressFailureRate:P2} exceeds 1% ({stressFailed}/{stressTotal})");
+
         // No deadlock: if we reach this point, no deadlock or hang occurred
         // (the test would have timed out otherwise)
     }
