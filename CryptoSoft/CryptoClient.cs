@@ -68,7 +68,7 @@ public class CryptoClient
             }
 
             // Parse the response (format: "OK|0|durationMs" or "ERROR|code|message")
-            var parts = response.Split('|');
+            var parts = response.Split('|', 3);
             if (parts.Length < 3)
             {
                 return new CryptoResponse(false, 3, stopwatch.ElapsedMilliseconds,

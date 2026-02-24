@@ -169,16 +169,17 @@ public class CryptoServer
                     return;
                 }
 
-                var parts = request.Split('|');
-                if (parts.Length < 3)
+                var firstPipe = request.IndexOf('|');
+                var lastPipe = request.LastIndexOf('|');
+                if (firstPipe == -1 || lastPipe == -1 || firstPipe == lastPipe)
                 {
                     await writer.WriteLineAsync("ERROR|2|Invalid format. Expected: operation|filePath|key");
                     return;
                 }
 
-                var operation = parts[0].ToLowerInvariant();
-                var filePath = parts[1];
-                var key = parts[2];
+                var operation = request[..firstPipe].ToLowerInvariant();
+                var filePath = request[(firstPipe + 1)..lastPipe];
+                var key = request[(lastPipe + 1)..];
 
                 Console.WriteLine($"Request received: {operation} {Path.GetFileName(filePath)}");
 
