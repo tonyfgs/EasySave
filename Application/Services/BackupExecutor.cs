@@ -47,6 +47,8 @@ public class BackupExecutor
         AsyncManualResetEvent pauseGate,
         CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(pauseGate);
+
         var stopwatch = Stopwatch.StartNew();
         var errors = new List<string>();
         int filesProcessed = 0;
