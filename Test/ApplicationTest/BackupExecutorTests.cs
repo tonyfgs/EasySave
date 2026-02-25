@@ -1110,4 +1110,14 @@ public class BackupExecutorTests
         Assert.True(result.Success);
         Assert.Equal(2, result.FilesProcessed);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_NullPauseGate_ShouldThrowArgumentNullException()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => _executor.ExecuteAsync(job, strategy, null!, CancellationToken.None));
+    }
 }
