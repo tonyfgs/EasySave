@@ -219,6 +219,20 @@ public class ProgressTrackerTests
     }
 
     [Fact]
+    public void BuildSnapshot_Timestamp_ShouldBeUtc()
+    {
+        var files = new List<FileDescriptor>
+        {
+            new("/file.txt", 100, DateTime.Now)
+        };
+        _tracker.Initialize(files);
+
+        var snapshot = _tracker.BuildSnapshot("TestJob");
+
+        Assert.Equal(DateTimeKind.Utc, snapshot.Timestamp.Kind);
+    }
+
+    [Fact]
     public void Initialize_AfterBlock_ShouldClearCurrentFile()
     {
         var files = new List<FileDescriptor>

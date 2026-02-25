@@ -1,4 +1,5 @@
 using Application.Concurrency;
+using Application.DTOs;
 using Application.Events;
 using Application.Ports;
 using Application.Services;
@@ -1119,5 +1120,29 @@ public class BackupExecutorTests
 
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => _executor.ExecuteAsync(job, strategy, null!, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TransferLogTimestamp_ShouldBeUtc()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
+        TransferLog? capturedLog = null;
+        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
+            .Callback<TransferCompletedEvent>(e => capturedLog = e.Transfer);
+
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
+
+        Assert.NotNull(capturedLog);
+        Assert.Equal(DateTimeKind.Utc, capturedLog!.Timestamp.Kind);
     }
 }
