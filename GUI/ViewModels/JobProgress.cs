@@ -12,6 +12,8 @@ public sealed class JobProgress : ObservableObject
 
     public string Name => _snapshot.Name;
     public int Progress => _snapshot.Progress;
+    public int TotalFiles => _snapshot.TotalFiles;
+    public int FilesRemaining => _snapshot.FilesRemaining;
     public JobState State => _snapshot.State;
     public bool IsPaused => _snapshot.State == JobState.Paused;
     public string PauseResumeLabel => IsPaused ? "Resume" : "Pause";
@@ -40,6 +42,8 @@ public sealed class JobProgress : ObservableObject
     {
         _snapshot = snapshot;
         OnPropertyChanged(nameof(Progress));
+        OnPropertyChanged(nameof(TotalFiles));
+        OnPropertyChanged(nameof(FilesRemaining));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(IsPaused));
         OnPropertyChanged(nameof(PauseResumeLabel));
@@ -49,6 +53,8 @@ public sealed class JobProgress : ObservableObject
     {
         _snapshot = new StateSnapshot { Name = _snapshot.Name, State = JobState.Inactive };
         OnPropertyChanged(nameof(Progress));
+        OnPropertyChanged(nameof(TotalFiles));
+        OnPropertyChanged(nameof(FilesRemaining));
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(IsPaused));
         OnPropertyChanged(nameof(PauseResumeLabel));

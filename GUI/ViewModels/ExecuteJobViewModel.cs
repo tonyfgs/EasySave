@@ -20,9 +20,13 @@ public class ExecuteJobViewModel : ObservableObject,
     private readonly BackupExecutionService _executionService;
     private readonly JobManagementService _jobManagementService;
     private readonly IEventBus _eventBus;
-    private bool _isExecuting;
-    private int _pendingUiUpdate;
+
+    // Per-job tracking: which job IDs are currently executing
+    private readonly HashSet<int> _runningJobIds = new();
     private readonly HashSet<int> _stoppedJobIds = new();
+
+    private int _pendingUiUpdate;
+    private bool _isExecuting;
     private string _statusMessage = string.Empty;
     private int _overallProgress;
     private string _currentFile = string.Empty;
@@ -33,18 +37,10 @@ public class ExecuteJobViewModel : ObservableObject,
     public ObservableCollection<BackupJob> SelectedJobs { get; } = new();
     public ObservableCollection<JobExecutionResult> Results { get; } = new();
 
-
     public bool IsExecuting
     {
         get => _isExecuting;
-        set
-        {
-            if (SetProperty(ref _isExecuting, value))
-            {
-                ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
-                ((RelayCommand)ExecuteAllCommand).RaiseCanExecuteChanged();
-            }
-        }
+        private set => SetProperty(ref _isExecuting, value);
     }
 
     public string StatusMessage
@@ -79,7 +75,7 @@ public class ExecuteJobViewModel : ObservableObject,
 
     public ICommand ExecuteSelectedCommand { get; }
     public ICommand ExecuteAllCommand { get; }
-    public ICommand ToggleJobSelectionCommand { get; }
+    public ICommand SelectJobCommand { get; }
 
     public ExecuteJobViewModel()
     {
@@ -87,20 +83,20 @@ public class ExecuteJobViewModel : ObservableObject,
         _jobManagementService = ServiceLocator.JobManagementService;
         _eventBus = ServiceLocator.EventBus;
 
-        // Subscribe to real-time progress events
         _eventBus.Subscribe<StateChangedEvent>(this);
         _eventBus.Subscribe<BusinessSoftwareDetectedEvent>(this);
         _eventBus.Subscribe<StopRequestedEvent>(this);
 
+        // Allow launching more jobs even if some are already running
         ExecuteSelectedCommand = new RelayCommand(
             async () => await ExecuteSelectedAsync(),
-            () => !IsExecuting && SelectedJobs.Count > 0);
+            () => SelectedJobs.Any(j => !_runningJobIds.Contains(j.Id)));
 
         ExecuteAllCommand = new RelayCommand(
             async () => await ExecuteAllAsync(),
-            () => !IsExecuting && AvailableJobs.Count > 0);
+            () => AvailableJobs.Any(jp => !_runningJobIds.Contains(jp.Job.Id)));
 
-        ToggleJobSelectionCommand = new RelayCommand<BackupJob>(ToggleSelection);
+        SelectJobCommand = new RelayCommand<JobProgress>(SelectJob);
     }
 
     public void LoadJobs()
@@ -108,6 +104,7 @@ public class ExecuteJobViewModel : ObservableObject,
         AvailableJobs.Clear();
         SelectedJobs.Clear();
         Results.Clear();
+        _runningJobIds.Clear();
         StatusMessage = string.Empty;
         OverallProgress = 0;
 
@@ -117,140 +114,167 @@ public class ExecuteJobViewModel : ObservableObject,
             var currentProgress = new JobProgress(new StateSnapshot { Name = job.Name }, job, _eventBus);
             AvailableJobs.Add(currentProgress);
         }
-        
+
         if (AvailableJobs.Count == 0)
             StatusMessage = "No jobs available to execute.";
     }
 
-    private void ToggleSelection(BackupJob? job)
+    // Toggle selection — running jobs cannot be re-selected until they finish
+    private void SelectJob(JobProgress? jobProgress)
     {
-        if (job is null) return;
+        if (jobProgress is null) return;
+        if (_runningJobIds.Contains(jobProgress.Job.Id)) return;
 
-        var availableJob = AvailableJobs.FirstOrDefault(a => a.Job == job);
-        if (availableJob is null) return;
+        jobProgress.IsSelected = !jobProgress.IsSelected;
 
-        if (availableJob.IsSelected && !SelectedJobs.Contains(job))
-            SelectedJobs.Add(job);
-        else if (!availableJob.IsSelected)
-            SelectedJobs.Remove(job);
+        if (jobProgress.IsSelected)
+            SelectedJobs.Add(jobProgress.Job);
+        else
+            SelectedJobs.Remove(jobProgress.Job);
 
-        ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
+        RefreshCommandStates();
     }
 
     private async Task ExecuteSelectedAsync()
     {
+        // Only run jobs that are not already executing
+        var jobsToRun = SelectedJobs
+            .Where(j => !_runningJobIds.Contains(j.Id))
+            .ToList();
+
+        if (jobsToRun.Count == 0) return;
+
+        var jobIds = jobsToRun.Select(j => j.Id).ToList();
+
+        foreach (var j in jobsToRun)
+            _runningJobIds.Add(j.Id);
+
         IsExecuting = true;
         Results.Clear();
         CurrentFile = string.Empty;
-        FilesProcessed = 0;
-        TotalFiles = 0;
-        OverallProgress = 0;
         StatusMessage = "Executing backups...";
+        RefreshCommandStates();
 
         try
         {
-            var jobIds = SelectedJobs.Select(j => j.Id).ToList();
+            var results = await _executionService.ExecuteJobsAsync(jobIds);
 
-            // Run on background thread
-            var results = await Task.Run(() => _executionService.ExecuteJobs(jobIds));
+            int succeeded = results.Count(r => r.Result.Success);
+            int failed = results.Count - succeeded;
 
-            // Update UI on main thread
-            await MainThread.InvokeOnMainThreadAsync(() =>
+            foreach (var r in results)
+                Results.Add(r);
+
+            if (failed > 0)
             {
-                foreach (var r in results)
-                {
-                    Results.Add(r);
-                }
-
-                int succeeded = results.Count(r => r.Result.Success);
-                int failed = results.Count - succeeded;
-
-                if (failed > 0)
-                {
-                    var failedJobs = results.Where(r => !r.Result.Success).ToList();
-                    var errorDetails = string.Join("; ", failedJobs.Select(j =>
-                        $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
-                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errorDetails}";
-                }
-                else
-                {
-                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed.";
-                }
-
-                OverallProgress = 100;
-                CurrentFile = string.Empty;
-            });
+                var errors = string.Join("; ", results
+                    .Where(r => !r.Result.Success)
+                    .Select(j => $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
+                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errors}";
+            }
+            else
+            {
+                StatusMessage = $"Completed: {succeeded} succeeded.";
+            }
         }
         catch (Exception ex)
         {
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                StatusMessage = $"Execution error: {ex.Message}";
-            });
+            StatusMessage = $"Execution error: {ex.Message}";
         }
         finally
         {
-            IsExecuting = false;
+            foreach (var j in jobsToRun)
+            {
+                _runningJobIds.Remove(j.Id);
+                var jp = AvailableJobs.FirstOrDefault(p => p.Job.Id == j.Id);
+                if (jp != null) jp.IsSelected = false;
+                SelectedJobs.Remove(j);
+            }
+
+            IsExecuting = _runningJobIds.Count > 0;
+
+            if (!IsExecuting)
+            {
+                OverallProgress = 0;
+                CurrentFile = string.Empty;
+            }
+
+            RefreshCommandStates();
         }
     }
 
     private async Task ExecuteAllAsync()
     {
+        // Only run jobs not already executing
+        var jobsToRun = AvailableJobs
+            .Where(jp => !_runningJobIds.Contains(jp.Job.Id))
+            .ToList();
+
+        if (jobsToRun.Count == 0) return;
+
+        foreach (var jp in jobsToRun)
+        {
+            jp.IsSelected = true;
+            if (!SelectedJobs.Contains(jp.Job))
+                SelectedJobs.Add(jp.Job);
+            _runningJobIds.Add(jp.Job.Id);
+        }
+
         IsExecuting = true;
         Results.Clear();
         CurrentFile = string.Empty;
-        FilesProcessed = 0;
-        TotalFiles = 0;
-        OverallProgress = 0;
         StatusMessage = "Executing backups...";
+        RefreshCommandStates();
 
         try
         {
-            // Run on background thread
-            var results = await Task.Run(() => _executionService.ExecuteAllJobs());
+            var jobIds = jobsToRun.Select(jp => jp.Job.Id).ToList();
+            var results = await _executionService.ExecuteJobsAsync(jobIds);
 
-            // Update UI on main thread
-            await MainThread.InvokeOnMainThreadAsync(() =>
+            int succeeded = results.Count(r => r.Result.Success);
+            int failed = results.Count - succeeded;
+
+            foreach (var r in results)
+                Results.Add(r);
+
+            if (failed > 0)
             {
-                foreach (var r in results)
-                {
-                    Results.Add(r);
-                }
-
-                int succeeded = results.Count(r => r.Result.Success);
-                int failed = results.Count - succeeded;
-
-                if (failed > 0)
-                {
-                    var failedJobs = results.Where(r => !r.Result.Success).ToList();
-                    var errorDetails = string.Join("; ", failedJobs.Select(j =>
-                        $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
-                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errorDetails}";
-                }
-                else
-                {
-                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed.";
-                }
-
-                OverallProgress = 100;
-                CurrentFile = string.Empty;
-            });
+                var errors = string.Join("; ", results
+                    .Where(r => !r.Result.Success)
+                    .Select(j => $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
+                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errors}";
+            }
+            else
+            {
+                StatusMessage = $"Completed: {succeeded} succeeded.";
+            }
         }
         catch (Exception ex)
         {
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                StatusMessage = $"Execution error: {ex.Message}";
-            });
+            StatusMessage = $"Execution error: {ex.Message}";
         }
         finally
         {
-            IsExecuting = false;
+            foreach (var jp in jobsToRun)
+            {
+                _runningJobIds.Remove(jp.Job.Id);
+                jp.IsSelected = false;
+                SelectedJobs.Remove(jp.Job);
+            }
+
+            IsExecuting = _runningJobIds.Count > 0;
+
+            if (!IsExecuting)
+            {
+                OverallProgress = 0;
+                CurrentFile = string.Empty;
+            }
+
+            RefreshCommandStates();
         }
     }
 
-    // Unselect the stopped job immediately when Stop is clicked.
-    // The reset happens later once the final End state event arrives.
+    // Unselect the stopped job immediately — reset happens when End event arrives
     public void Handle(StopRequestedEvent @event)
     {
         _stoppedJobIds.Add(@event.JobId);
@@ -260,10 +284,9 @@ public class ExecuteJobViewModel : ObservableObject,
 
         jobProgress.IsSelected = false;
         SelectedJobs.Remove(jobProgress.Job);
-        ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
+        RefreshCommandStates();
     }
 
-    // Handle business software detection — show clear blocking message
     public void Handle(BusinessSoftwareDetectedEvent @event)
     {
         MainThread.BeginInvokeOnMainThread(() =>
@@ -274,9 +297,6 @@ public class ExecuteJobViewModel : ObservableObject,
         });
     }
 
-    // Handle real-time progress updates from StateChangedEvent.
-    // Throttle: only one pending UI callback at a time for routine Active-state updates.
-    // Significant state changes (Paused, End, Error…) always go through immediately.
     public void Handle(StateChangedEvent @event)
     {
         var snapshot = @event.Snapshot;
@@ -289,9 +309,6 @@ public class ExecuteJobViewModel : ObservableObject,
         {
             if (isProgressUpdate) Interlocked.Exchange(ref _pendingUiUpdate, 0);
 
-            OverallProgress = snapshot.Progress;
-            FilesProcessed = snapshot.TotalFiles - snapshot.FilesRemaining;
-            TotalFiles = snapshot.TotalFiles;
             JobProgress? jobToUpdate = AvailableJobs.FirstOrDefault(j => j.Name == snapshot.Name);
             if (jobToUpdate != null)
             {
@@ -301,10 +318,22 @@ public class ExecuteJobViewModel : ObservableObject,
                     jobToUpdate.Update(snapshot);
             }
 
+            // Aggregate progress across all running jobs
+            var runningJobs = AvailableJobs.Where(j => j.IsSelected).ToList();
+            var total = runningJobs.Sum(j => j.TotalFiles);
+            var processed = runningJobs.Sum(j => j.TotalFiles - j.FilesRemaining);
+            TotalFiles = total;
+            FilesProcessed = processed;
+            OverallProgress = total > 0 ? (int)((double)processed / total * 100) : 0;
+
             if (!string.IsNullOrEmpty(snapshot.CurrentSourceFile))
-            {
                 CurrentFile = Path.GetFileName(snapshot.CurrentSourceFile);
-            }
         });
+    }
+
+    private void RefreshCommandStates()
+    {
+        ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)ExecuteAllCommand).RaiseCanExecuteChanged();
     }
 }

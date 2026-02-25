@@ -62,7 +62,7 @@ public class MainViewModel : ObservableObject
         _currentViewModel = JobListViewModel;
 
         ShowJobListCommand = new RelayCommand(NavigateToJobList);
-        ShowCreateJobCommand = new RelayCommand(() => CurrentViewModel = CreateJobViewModel);
+        ShowCreateJobCommand = new RelayCommand(NavigateToCreate);
         ShowExecuteJobCommand = new RelayCommand(NavigateToExecute);
         ShowSettingsCommand = new RelayCommand(() => CurrentViewModel = SettingsViewModel);
         ToggleLanguageCommand = new RelayCommand(ToggleLanguage);
@@ -80,9 +80,17 @@ public class MainViewModel : ObservableObject
         CurrentViewModel = CreateJobViewModel;
     }
 
+    private void NavigateToCreate()
+    {
+        CreateJobViewModel.ResetForm();
+        CurrentViewModel = CreateJobViewModel;
+    }
+
     private void NavigateToExecute()
     {
-        ExecuteJobViewModel.LoadJobs();
+        // Don't reload jobs while execution is in progress — it would clear the running state
+        if (!ExecuteJobViewModel.IsExecuting)
+            ExecuteJobViewModel.LoadJobs();
         CurrentViewModel = ExecuteJobViewModel;
     }
 

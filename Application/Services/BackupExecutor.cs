@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using Application.Concurrency;
 using Application.DTOs;
 using Application.Events;
 using Application.Ports;
@@ -14,38 +16,45 @@ public class BackupExecutor :
     private readonly IPathAdapter _pathAdapter;
     private readonly IEventBus _eventBus;
     private readonly BackupDomainService _domainService;
-    private readonly ProgressTracker _tracker;
     private readonly IEncryptionService _encryptionService;
     private readonly IEncryptionConfig _encryptionConfig;
     private readonly IBusinessSoftwareDetector _businessSoftwareDetector;
     private readonly IBusinessSoftwareConfig _businessSoftwareConfig;
+    private readonly ILargeFileTransferLock _largeFileLock;
+    private readonly ILargeFileConfig _largeFileConfig;
 
-    private readonly ManualResetEventSlim _pauseHandle = new(true);
-    private volatile bool _stopRequested;
-    private volatile bool _isPaused;
-    private int _currentJobId = -1;
-    private string _currentJobName = string.Empty;
+    // Per-job execution state: keyed by job ID, safe for concurrent ExecuteAsync calls
+    private sealed class PerJobState
+    {
+        public AsyncManualResetEvent PauseGate { get; } = new(initialState: true); // open = running
+        public CancellationTokenSource StopCts { get; } = new();
+        public volatile bool StopRequested;
+    }
+
+    private readonly ConcurrentDictionary<int, PerJobState> _jobStates = new();
 
     public BackupExecutor(
         IFileSystemGateway fileSystem,
         IPathAdapter pathAdapter,
         IEventBus eventBus,
         BackupDomainService domainService,
-        ProgressTracker tracker,
         IEncryptionService encryptionService,
         IEncryptionConfig encryptionConfig,
         IBusinessSoftwareDetector businessSoftwareDetector,
-        IBusinessSoftwareConfig businessSoftwareConfig)
+        IBusinessSoftwareConfig businessSoftwareConfig,
+        ILargeFileTransferLock largeFileLock,
+        ILargeFileConfig largeFileConfig)
     {
         _fileSystem = fileSystem;
         _pathAdapter = pathAdapter;
         _eventBus = eventBus;
         _domainService = domainService;
-        _tracker = tracker;
         _encryptionService = encryptionService;
         _encryptionConfig = encryptionConfig;
         _businessSoftwareDetector = businessSoftwareDetector;
         _businessSoftwareConfig = businessSoftwareConfig;
+        _largeFileLock = largeFileLock;
+        _largeFileConfig = largeFileConfig;
 
         _eventBus.Subscribe<PauseRequestedEvent>(this);
         _eventBus.Subscribe<StopRequestedEvent>(this);
@@ -53,35 +62,35 @@ public class BackupExecutor :
 
     public void Handle(PauseRequestedEvent e)
     {
-        if (e.JobId != _currentJobId) return;
-        // Toggle: only touch thread-safe primitives — tracker state is set by the background thread
-        if (_isPaused)
-        {
-            _isPaused = false;
-            _pauseHandle.Set();
-        }
+        if (!_jobStates.TryGetValue(e.JobId, out var state)) return;
+        // Toggle: gate IsSet = running, !IsSet = paused
+        if (state.PauseGate.IsSet)
+            state.PauseGate.Reset();
         else
-        {
-            _isPaused = true;
-            _pauseHandle.Reset();
-        }
+            state.PauseGate.Set();
     }
 
     public void Handle(StopRequestedEvent e)
     {
-        if (e.JobId != _currentJobId) return;
-        _stopRequested = true;
-        _pauseHandle.Set();
+        if (!_jobStates.TryGetValue(e.JobId, out var state)) return;
+        state.StopRequested = true;
+        state.StopCts.Cancel();  // cancel in-progress async I/O
+        state.PauseGate.Set();   // unblock if currently waiting on pause
     }
 
-    public BackupResult Execute(BackupJob job, IBackupStrategy strategy)
+    public async Task<BackupResult> ExecuteAsync(
+        BackupJob job,
+        IBackupStrategy strategy,
+        CancellationToken ct = default)
     {
-        _currentJobId = job.Id;
-        _currentJobName = job.Name;
-        _stopRequested = false;
-        _isPaused = false;
-        _pauseHandle.Set();
+        var perJobState = new PerJobState();
+        _jobStates[job.Id] = perJobState;
 
+        // jobCt fires on either outer cancellation OR per-job stop
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, perJobState.StopCts.Token);
+        var jobCt = linkedCts.Token;
+
+        var tracker = new ProgressTracker();
         var stopwatch = Stopwatch.StartNew();
         var errors = new List<string>();
         int filesProcessed = 0;
@@ -90,6 +99,8 @@ public class BackupExecutor :
 
         try
         {
+            ct.ThrowIfCancellationRequested();
+
             var sourcePath = Path.GetFullPath(job.SourcePath);
             var targetPath = Path.GetFullPath(job.TargetPath);
 
@@ -98,47 +109,64 @@ public class BackupExecutor :
             var allFiles = _fileSystem.EnumerateFiles(sourcePath);
             var filesToCopy = _domainService.SelectFilesForBackup(job, allFiles, strategy);
 
-            _tracker.Initialize(filesToCopy.ToList());
+            tracker.Initialize(filesToCopy.ToList());
 
             foreach (var file in filesToCopy)
             {
-                if (_stopRequested)
+                // --- Stop check ---
+                if (perJobState.StopRequested)
                 {
-                    _tracker.SetState(JobState.Stopping);
-                    _tracker.ClearCurrentFile();
-                    _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                    tracker.SetState(JobState.Stopping);
+                    tracker.ClearCurrentFile();
+                    _eventBus.Publish(new StateChangedEvent(tracker.BuildSnapshot(job.Name)));
                     break;
                 }
 
-                if (_isPaused)
+                // --- Pause gate (async, cancellable) ---
+                if (!perJobState.PauseGate.IsSet)
                 {
-                    _tracker.SetState(JobState.Paused);
-                    _tracker.ClearCurrentFile();
-                    _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
-                    _pauseHandle.Wait();
+                    tracker.SetState(JobState.Paused);
+                    tracker.ClearCurrentFile();
+                    _eventBus.Publish(new StateChangedEvent(tracker.BuildSnapshot(job.Name)));
 
-                    if (_stopRequested)
+                    await perJobState.PauseGate.WaitAsync(jobCt).ConfigureAwait(false);
+
+                    if (perJobState.StopRequested)
                     {
-                        _tracker.SetState(JobState.Stopping);
-                        _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                        tracker.SetState(JobState.Stopping);
+                        _eventBus.Publish(new StateChangedEvent(tracker.BuildSnapshot(job.Name)));
                         break;
                     }
 
-                    _tracker.SetState(JobState.Active);
-                    _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                    tracker.SetState(JobState.Active);
+                    _eventBus.Publish(new StateChangedEvent(tracker.BuildSnapshot(job.Name)));
                 }
 
                 var relativePath = Path.GetRelativePath(sourcePath, file.Path);
                 var targetFilePath = Path.Combine(targetPath, relativePath);
 
-                _tracker.SetCurrentFile(
+                tracker.SetCurrentFile(
                     _pathAdapter.ToUNC(file.Path),
                     _pathAdapter.ToUNC(targetFilePath));
+
+                // --- Large file throttle ---
+                bool acquiredLargeFileLock = false;
+                var thresholdBytes = _largeFileConfig.GetLargeFileSizeThresholdKb() * 1024L;
+                if (thresholdBytes > 0 && file.Size > thresholdBytes)
+                {
+                    tracker.SetState(JobState.Blocked);
+                    tracker.SetBlockReason("Waiting for large file transfer slot");
+                    _eventBus.Publish(new StateChangedEvent(tracker.BuildSnapshot(job.Name)));
+                    await _largeFileLock.AcquireAsync(jobCt).ConfigureAwait(false);
+                    acquiredLargeFileLock = true; // set only after successful acquire
+                    tracker.SetState(JobState.Active);
+                    tracker.SetBlockReason(null);
+                }
 
                 try
                 {
                     var transferStopwatch = Stopwatch.StartNew();
-                    var bytesCopied = _fileSystem.CopyFile(file.Path, targetFilePath);
+                    var bytesCopied = await _fileSystem.CopyFileAsync(file.Path, targetFilePath, jobCt).ConfigureAwait(false);
                     transferStopwatch.Stop();
 
                     filesProcessed++;
@@ -170,11 +198,11 @@ public class BackupExecutor :
                         }
                     }
 
-                    _tracker.FileProcessed(file);
+                    tracker.FileProcessed(file);
 
                     var transferLog = new TransferLog
                     {
-                        Timestamp = DateTime.Now,
+                        Timestamp = DateTime.UtcNow,
                         BackupName = job.Name,
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
@@ -184,7 +212,7 @@ public class BackupExecutor :
                     };
                     _eventBus.Publish(new TransferCompletedEvent(transferLog));
 
-                    var snapshot = _tracker.BuildSnapshot(job.Name);
+                    var snapshot = tracker.BuildSnapshot(job.Name);
                     _eventBus.Publish(new StateChangedEvent(snapshot));
 
                     // In-flight business software detection
@@ -197,24 +225,29 @@ public class BackupExecutor :
                             errors.Add(blockReason);
                             blockedByBusinessSoftware = true;
 
-                            _tracker.SetState(JobState.Blocked);
-                            _tracker.SetBlockReason(blockReason);
-                            _tracker.ClearCurrentFile();
-                            var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
+                            tracker.SetState(JobState.Blocked);
+                            tracker.SetBlockReason(blockReason);
+                            tracker.ClearCurrentFile();
+                            var blockedSnapshot = tracker.BuildSnapshot(job.Name);
                             _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
                             _eventBus.Publish(new BusinessSoftwareDetectedEvent(
-                                job.Name, businessStatus, DateTime.Now));
+                                job.Name, businessStatus, DateTime.UtcNow));
                             break;
                         }
                     }
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException) when (perJobState.StopRequested)
+                {
+                    // Stop was requested mid-copy — break out cleanly without re-throwing
+                    break;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     errors.Add($"Failed to copy {file.Path}: {ex.Message}");
 
                     var errorLog = new TransferLog
                     {
-                        Timestamp = DateTime.Now,
+                        Timestamp = DateTime.UtcNow,
                         BackupName = job.Name,
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
@@ -224,40 +257,51 @@ public class BackupExecutor :
                     };
                     _eventBus.Publish(new TransferCompletedEvent(errorLog));
 
-                    _tracker.FileProcessed(file);
-                    var snapshot = _tracker.BuildSnapshot(job.Name);
+                    tracker.FileProcessed(file);
+                    var snapshot = tracker.BuildSnapshot(job.Name);
                     _eventBus.Publish(new StateChangedEvent(snapshot));
+                }
+                finally
+                {
+                    if (acquiredLargeFileLock)
+                        _largeFileLock.Release();
                 }
             }
 
-            if (_stopRequested && !blockedByBusinessSoftware)
+            if (perJobState.StopRequested && !blockedByBusinessSoftware)
             {
-                _tracker.SetState(JobState.End);
-                _tracker.ClearCurrentFile();
-                _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                tracker.SetState(JobState.End);
+                tracker.ClearCurrentFile();
+                _eventBus.Publish(new StateChangedEvent(tracker.BuildSnapshot(job.Name)));
             }
             else if (!blockedByBusinessSoftware)
             {
-                _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
-                _tracker.ClearCurrentFile();
-                var endSnapshot = _tracker.BuildSnapshot(job.Name);
+                tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
+                tracker.ClearCurrentFile();
+                var endSnapshot = tracker.BuildSnapshot(job.Name);
                 _eventBus.Publish(new StateChangedEvent(endSnapshot));
 
                 if (strategy is FullBackupStrategy)
                 {
-                    job.MarkFullBackupCompleted(DateTime.Now);
+                    job.MarkFullBackupCompleted(DateTime.UtcNow);
                 }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             errors.Add($"Backup execution failed: {ex.Message}");
         }
+        finally
+        {
+            _jobStates.TryRemove(job.Id, out _);
+            perJobState.StopCts.Dispose();
+        }
 
         stopwatch.Stop();
-
-        _currentJobId = -1;
-        _currentJobName = string.Empty;
 
         if (errors.Count > 0)
             return BackupResult.Fail(errors, stopwatch.Elapsed);

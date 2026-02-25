@@ -57,6 +57,14 @@ public class JsonStateManager : IStateManager
         if (string.IsNullOrWhiteSpace(json))
             return new List<StateSnapshot>();
 
-        return JsonSerializer.Deserialize<List<StateSnapshot>>(json) ?? new List<StateSnapshot>();
+        try
+        {
+            return JsonSerializer.Deserialize<List<StateSnapshot>>(json) ?? new List<StateSnapshot>();
+        }
+        catch (JsonException)
+        {
+            File.Delete(_filePath);
+            return new List<StateSnapshot>();
+        }
     }
 }

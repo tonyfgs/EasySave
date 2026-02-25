@@ -7,6 +7,7 @@ namespace Infrastructure;
 public class FileJobRepository : IJobRepository
 {
     private readonly string _filePath;
+    private readonly object _lock = new();
     private List<BackupJob> _jobs;
 
     public FileJobRepository(string filePath)
@@ -17,44 +18,57 @@ public class FileJobRepository : IJobRepository
 
     public void Save(BackupJob job)
     {
-        if (job.Id == 0)
-            job.Id = GenerateId();
+        lock (_lock)
+        {
+            if (job.Id == 0)
+                job.Id = GenerateId();
 
-        _jobs.Add(job);
-        PersistToDisk();
+            _jobs.Add(job);
+            PersistToDisk();
+        }
     }
 
     public void Delete(int id)
     {
-        _jobs.RemoveAll(j => j.Id == id);
-        PersistToDisk();
+        lock (_lock)
+        {
+            _jobs.RemoveAll(j => j.Id == id);
+            PersistToDisk();
+        }
     }
 
     public List<BackupJob> GetAll()
     {
-        return new List<BackupJob>(_jobs);
+        lock (_lock)
+            return new List<BackupJob>(_jobs);
     }
 
     public BackupJob? GetById(int id)
     {
-        return _jobs.FirstOrDefault(j => j.Id == id);
+        lock (_lock)
+            return _jobs.FirstOrDefault(j => j.Id == id);
     }
 
     public void Update(BackupJob job)
     {
-        var index = _jobs.FindIndex(j => j.Id == job.Id);
-        if (index >= 0)
+        lock (_lock)
         {
-            _jobs[index] = job;
-            PersistToDisk();
+            var index = _jobs.FindIndex(j => j.Id == job.Id);
+            if (index >= 0)
+            {
+                _jobs[index] = job;
+                PersistToDisk();
+            }
         }
     }
 
     public int Count()
     {
-        return _jobs.Count;
+        lock (_lock)
+            return _jobs.Count;
     }
 
+    // Caller must hold _lock
     private int GenerateId()
     {
         if (_jobs.Count == 0)

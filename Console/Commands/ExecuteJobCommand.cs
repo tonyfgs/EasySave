@@ -18,8 +18,8 @@ public class ExecuteJobCommand : ICommand
         try
         {
             var results = args.Count == 1 && args[0] == "*"
-                ? _executionService.ExecuteAllJobs()
-                : _executionService.ExecuteJobs(args.Select(int.Parse).ToList());
+                ? _executionService.ExecuteAllJobsAsync().GetAwaiter().GetResult()
+                : _executionService.ExecuteJobsAsync(args.Select(int.Parse).ToList()).GetAwaiter().GetResult();
 
             foreach (var r in results)
             {

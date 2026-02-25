@@ -23,22 +23,27 @@ public class ExecuteJobCommandTests
         var mockEncryptionConfig = new Mock<IEncryptionConfig>();
         var mockDetector = new Mock<IBusinessSoftwareDetector>();
         var mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
+        var mockLargeFileLock = new Mock<ILargeFileTransferLock>();
+        var mockLargeFileConfig = new Mock<ILargeFileConfig>();
         var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
 
         mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
         mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
             .Returns(new List<FileDescriptor>());
+        mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0L);
         mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string>().AsReadOnly());
         mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
         mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0);
 
         var executor = new BackupExecutor(
             mockFileSystem.Object, mockPathAdapter.Object,
-            mockEventBus.Object, domainService, tracker,
+            mockEventBus.Object, domainService,
             mockEncryptionService.Object, mockEncryptionConfig.Object,
-            mockDetector.Object, mockDetectorConfig.Object);
+            mockDetector.Object, mockDetectorConfig.Object,
+            mockLargeFileLock.Object, mockLargeFileConfig.Object);
 
         var executionService = new BackupExecutionService(
             _mockRepo.Object, executor, strategyFactory,

@@ -41,18 +41,19 @@ public class Program
         var pathAdapter = new UNCPathAdapter();
         var jobRepository = new FileJobRepository(jobsPath);
         var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
 
         var encryptionService = new DisabledEncryptionService();
         IEncryptionConfig encryptionConfig = appConfig;
         var businessSoftwareDetector = new DisabledBusinessSoftwareDetector();
         IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
+        ILargeFileConfig largeFileConfig = appConfig;
+        var largeFileLock = new SemaphoreLargeFileTransferLock();
 
         var languageService = new LanguageApplicationService(appConfig);
         var backupExecutor = new BackupExecutor(
-            fileSystem, pathAdapter, eventBus, domainService, tracker,
+            fileSystem, pathAdapter, eventBus, domainService,
             encryptionService, encryptionConfig, businessSoftwareDetector,
-            businessSoftwareConfig);
+            businessSoftwareConfig, largeFileLock, largeFileConfig);
         var strategyFactory = new BackupStrategyFactory();
         var jobService = new JobManagementService(jobRepository);
         var executionService = new BackupExecutionService(

@@ -60,7 +60,6 @@ public static class ServiceLocator
         var pathAdapter = new UNCPathAdapter();
         var jobRepository = new FileJobRepository(jobsPath);
         var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
 
         var cryptoSoftExe = OperatingSystem.IsWindows() ? "CryptoSoft.exe" : "CryptoSoft";
         var cryptoSoftPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CryptoSoft", cryptoSoftExe);
@@ -68,11 +67,13 @@ public static class ServiceLocator
         IEncryptionConfig encryptionConfig = appConfig;
         var businessSoftwareDetector = new ProcessDetector(appConfig);
         IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
+        ILargeFileConfig largeFileConfig = appConfig;
+        var largeFileLock = new SemaphoreLargeFileTransferLock();
 
         var backupExecutor = new BackupExecutor(
-            fileSystem, pathAdapter, eventBus, domainService, tracker,
+            fileSystem, pathAdapter, eventBus, domainService,
             encryptionService, encryptionConfig, businessSoftwareDetector,
-            businessSoftwareConfig);
+            businessSoftwareConfig, largeFileLock, largeFileConfig);
         var strategyFactory = new BackupStrategyFactory();
 
         JobManagementService = new JobManagementService(jobRepository);

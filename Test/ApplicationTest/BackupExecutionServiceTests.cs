@@ -26,27 +26,32 @@ public class BackupExecutionServiceTests
         var mockPathAdapter = new Mock<IPathAdapter>();
         var mockEncryptionService = new Mock<IEncryptionService>();
         var mockEncryptionConfig = new Mock<IEncryptionConfig>();
+        var mockLargeFileLock = new Mock<ILargeFileTransferLock>();
+        var mockLargeFileConfig = new Mock<ILargeFileConfig>();
         var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
 
         mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
         mockFileSystem.Setup(fs => fs.EnumerateFiles(It.IsAny<string>()))
             .Returns(new List<FileDescriptor>());
+        mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0L);
         mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string>().AsReadOnly());
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0);
 
         var executor = new BackupExecutor(
             mockFileSystem.Object,
             mockPathAdapter.Object,
             _mockEventBus.Object,
             domainService,
-            tracker,
             mockEncryptionService.Object,
             mockEncryptionConfig.Object,
             _mockDetector.Object,
-            _mockDetectorConfig.Object);
+            _mockDetectorConfig.Object,
+            mockLargeFileLock.Object,
+            mockLargeFileConfig.Object);
 
         _service = new BackupExecutionService(
             _mockRepo.Object, executor, strategyFactory,
@@ -54,7 +59,7 @@ public class BackupExecutionServiceTests
     }
 
     [Fact]
-    public void ExecuteJobs_ShouldExecuteSpecifiedJobs()
+    public async Task ExecuteJobsAsync_ShouldExecuteSpecifiedJobs()
     {
         var job1 = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         var job2 = new BackupJob(2, "Job2", "/src2", "/dst2", BackupType.Differential);
@@ -62,36 +67,36 @@ public class BackupExecutionServiceTests
         _mockRepo.Setup(r => r.GetById(1)).Returns(job1);
         _mockRepo.Setup(r => r.GetById(2)).Returns(job2);
 
-        var results = _service.ExecuteJobs(new List<int> { 1, 2 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1, 2 });
 
         Assert.Equal(2, results.Count);
         Assert.All(results, r => Assert.True(r.Result.Success));
     }
 
     [Fact]
-    public void ExecuteJobs_JobNotFound_ShouldReturnFailureResult()
+    public async Task ExecuteJobsAsync_JobNotFound_ShouldReturnFailureResult()
     {
         _mockRepo.Setup(r => r.GetById(99)).Returns((BackupJob?)null);
 
-        var results = _service.ExecuteJobs(new List<int> { 99 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 99 });
 
         Assert.Single(results);
         Assert.False(results[0].Result.Success);
     }
 
     [Fact]
-    public void ExecuteJobs_ShouldCallRepositoryUpdateAfterExecution()
+    public async Task ExecuteJobsAsync_ShouldCallRepositoryUpdateAfterExecution()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
 
-        _service.ExecuteJobs(new List<int> { 1 });
+        await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         _mockRepo.Verify(r => r.Update(job), Times.Once);
     }
 
     [Fact]
-    public void ExecuteAllJobs_ShouldExecuteAllJobsFromRepository()
+    public async Task ExecuteAllJobsAsync_ShouldExecuteAllJobsFromRepository()
     {
         var jobs = new List<BackupJob>
         {
@@ -102,7 +107,7 @@ public class BackupExecutionServiceTests
         _mockRepo.Setup(r => r.GetById(1)).Returns(jobs[0]);
         _mockRepo.Setup(r => r.GetById(2)).Returns(jobs[1]);
 
-        var results = _service.ExecuteAllJobs();
+        var results = await _service.ExecuteAllJobsAsync();
 
         Assert.Equal(2, results.Count);
     }
@@ -110,14 +115,14 @@ public class BackupExecutionServiceTests
     // --- Pre-flight business software detection tests ---
 
     [Fact]
-    public void ExecuteJobs_DetectionEnabled_Running_ShouldSkipJobWithFailResult()
+    public async Task ExecuteJobsAsync_DetectionEnabled_Running_ShouldSkipJobWithFailResult()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
-        var results = _service.ExecuteJobs(new List<int> { 1 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         Assert.Single(results);
         Assert.False(results[0].Result.Success);
@@ -125,75 +130,75 @@ public class BackupExecutionServiceTests
     }
 
     [Fact]
-    public void ExecuteJobs_DetectionEnabled_Running_ShouldPublishBusinessSoftwareDetectedEvent()
+    public async Task ExecuteJobsAsync_DetectionEnabled_Running_ShouldPublishBusinessSoftwareDetectedEvent()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
-        _service.ExecuteJobs(new List<int> { 1 });
+        await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         _mockEventBus.Verify(bus => bus.Publish(It.Is<BusinessSoftwareDetectedEvent>(
             e => e.JobName == "Job1" && e.Status == BusinessSoftwareStatus.Running)), Times.Once);
     }
 
     [Fact]
-    public void ExecuteJobs_DetectionEnabled_NotRunning_ShouldExecuteNormally()
+    public async Task ExecuteJobsAsync_DetectionEnabled_NotRunning_ShouldExecuteNormally()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
 
-        var results = _service.ExecuteJobs(new List<int> { 1 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         Assert.Single(results);
         Assert.True(results[0].Result.Success);
     }
 
     [Fact]
-    public void ExecuteJobs_DetectionDisabled_ShouldNotCheckDetector()
+    public async Task ExecuteJobsAsync_DetectionDisabled_ShouldNotCheckDetector()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
 
-        _service.ExecuteJobs(new List<int> { 1 });
+        await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         _mockDetector.Verify(d => d.GetStatus(), Times.Never);
     }
 
     [Fact]
-    public void ExecuteJobs_DetectionEnabled_Unknown_ShouldBlock_FailClosed()
+    public async Task ExecuteJobsAsync_DetectionEnabled_Unknown_ShouldBlock_FailClosed()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Unknown);
 
-        var results = _service.ExecuteJobs(new List<int> { 1 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         Assert.Single(results);
         Assert.False(results[0].Result.Success);
     }
 
     [Fact]
-    public void ExecuteJobs_DetectionEnabled_Error_ShouldBlock_FailClosed()
+    public async Task ExecuteJobsAsync_DetectionEnabled_Error_ShouldBlock_FailClosed()
     {
         var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         _mockRepo.Setup(r => r.GetById(1)).Returns(job);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Error);
 
-        var results = _service.ExecuteJobs(new List<int> { 1 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1 });
 
         Assert.Single(results);
         Assert.False(results[0].Result.Success);
     }
 
     [Fact]
-    public void ExecuteJobs_DetectionEnabled_Running_ShouldNotProcessRemainingJobs()
+    public async Task ExecuteJobsAsync_DetectionEnabled_Running_ShouldNotProcessRemainingJobs()
     {
         var job1 = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
         var job2 = new BackupJob(2, "Job2", "/src2", "/dst2", BackupType.Full);
@@ -204,11 +209,19 @@ public class BackupExecutionServiceTests
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
-        var results = _service.ExecuteJobs(new List<int> { 1, 2, 3 });
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1, 2, 3 });
 
         Assert.Single(results);
         Assert.Equal(1, results[0].JobId);
         Assert.False(results[0].Result.Success);
         Assert.Contains(results[0].Result.Errors, e => e.Contains("Business software"));
+    }
+
+    [Fact]
+    public async Task ExecuteJobsAsync_EmptyList_ShouldReturnEmptyResults()
+    {
+        var results = await _service.ExecuteJobsAsync(new List<int>());
+
+        Assert.Empty(results);
     }
 }

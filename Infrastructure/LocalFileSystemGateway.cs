@@ -38,6 +38,21 @@ public class LocalFileSystemGateway : IFileSystemGateway
         return sourceSize;
     }
 
+    public async Task<long> CopyFileAsync(string source, string target, CancellationToken ct = default)
+    {
+        var normalizedTarget = Path.GetFullPath(target);
+        var targetDir = Path.GetDirectoryName(normalizedTarget);
+        if (!string.IsNullOrEmpty(targetDir))
+            Directory.CreateDirectory(targetDir);
+
+        var sourceSize = new FileInfo(source).Length;
+        const int bufferSize = 81920;
+        await using var sourceStream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize, useAsync: true);
+        await using var targetStream = new FileStream(normalizedTarget, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, useAsync: true);
+        await sourceStream.CopyToAsync(targetStream, bufferSize, ct).ConfigureAwait(false);
+        return sourceSize;
+    }
+
     public bool Exists(string path)
     {
         return Directory.Exists(path) || File.Exists(path);

@@ -34,14 +34,20 @@ public class ConsoleIntegrationTests
         mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
         var mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
         mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        var mockLargeFileLock = new Mock<ILargeFileTransferLock>();
+        var mockLargeFileConfig = new Mock<ILargeFileConfig>();
+        mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0);
         var domainService = new BackupDomainService();
-        var tracker = new ProgressTracker();
+
+        mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0L);
 
         var executor = new BackupExecutor(
             mockFileSystem.Object, mockPathAdapter.Object,
-            mockEventBus.Object, domainService, tracker,
+            mockEventBus.Object, domainService,
             mockEncryptionService.Object, mockEncryptionConfig.Object,
-            mockDetector.Object, mockDetectorConfig.Object);
+            mockDetector.Object, mockDetectorConfig.Object,
+            mockLargeFileLock.Object, mockLargeFileConfig.Object);
         var strategyFactory = new BackupStrategyFactory();
         return new BackupExecutionService(
             mockRepo.Object, executor, strategyFactory,
