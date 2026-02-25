@@ -211,4 +211,88 @@ public class BackupExecutionServiceTests
         Assert.False(results[0].Result.Success);
         Assert.Contains(results[0].Result.Errors, e => e.Contains("Business software"));
     }
+
+    // --- ExecuteJobsAsync / ExecuteAllJobsAsync tests (00-10) ---
+
+    [Fact]
+    public async Task ExecuteJobsAsync_ShouldExecuteSpecifiedJobs()
+    {
+        var job1 = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        var job2 = new BackupJob(2, "Job2", "/src2", "/dst2", BackupType.Differential);
+
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job1);
+        _mockRepo.Setup(r => r.GetById(2)).Returns(job2);
+
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1, 2 });
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, r => Assert.True(r.Result.Success));
+    }
+
+    [Fact]
+    public async Task ExecuteJobsAsync_JobNotFound_ShouldReturnFailureResult()
+    {
+        _mockRepo.Setup(r => r.GetById(99)).Returns((BackupJob?)null);
+
+        var results = await _service.ExecuteJobsAsync(new List<int> { 99 });
+
+        Assert.Single(results);
+        Assert.False(results[0].Result.Success);
+    }
+
+    [Fact]
+    public async Task ExecuteJobsAsync_ShouldCallRepositoryUpdateAfterExecution()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+
+        await _service.ExecuteJobsAsync(new List<int> { 1 });
+
+        _mockRepo.Verify(r => r.Update(job), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAllJobsAsync_ShouldExecuteAllFromRepository()
+    {
+        var jobs = new List<BackupJob>
+        {
+            new(1, "Job1", "/src1", "/dst1", BackupType.Full),
+            new(2, "Job2", "/src2", "/dst2", BackupType.Full)
+        };
+        _mockRepo.Setup(r => r.GetAll()).Returns(jobs);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(jobs[0]);
+        _mockRepo.Setup(r => r.GetById(2)).Returns(jobs[1]);
+
+        var results = await _service.ExecuteAllJobsAsync();
+
+        Assert.Equal(2, results.Count);
+    }
+
+    [Fact]
+    public async Task ExecuteJobsAsync_CancelledToken_ShouldThrowOperationCancelled()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => _service.ExecuteJobsAsync(new List<int> { 1 }, cts.Token));
+    }
+
+    [Fact]
+    public async Task ExecuteJobsAsync_DetectionEnabled_Running_ShouldBlock()
+    {
+        var job = new BackupJob(1, "Job1", "/src1", "/dst1", BackupType.Full);
+        _mockRepo.Setup(r => r.GetById(1)).Returns(job);
+        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
+        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
+
+        var results = await _service.ExecuteJobsAsync(new List<int> { 1 });
+
+        Assert.Single(results);
+        Assert.False(results[0].Result.Success);
+        Assert.Contains(results[0].Result.Errors, e => e.Contains("Business software"));
+    }
 }
