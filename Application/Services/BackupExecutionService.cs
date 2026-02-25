@@ -66,7 +66,7 @@ public class BackupExecutionService
                 if (status.IsBlocking())
                 {
                     _eventBus.Publish(new BusinessSoftwareDetectedEvent(
-                        job.Name, status, DateTime.Now));
+                        job.Name, status, DateTime.UtcNow));
                     var failResult = BackupResult.Fail(
                         new List<string> { $"Business software detected ({status})" },
                         TimeSpan.Zero);

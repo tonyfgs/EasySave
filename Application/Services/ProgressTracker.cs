@@ -59,7 +59,7 @@ public class ProgressTracker
         return new StateSnapshot
         {
             Name = jobName,
-            Timestamp = DateTime.Now,
+            Timestamp = DateTime.UtcNow,
             State = _state,
             TotalFiles = _totalFiles,
             TotalSize = _totalBytes,

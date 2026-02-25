@@ -122,7 +122,7 @@ public class BackupExecutor
 
                     var transferLog = new TransferLog
                     {
-                        Timestamp = DateTime.Now,
+                        Timestamp = DateTime.UtcNow,
                         BackupName = job.Name,
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
@@ -151,7 +151,7 @@ public class BackupExecutor
                             var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
                             _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
                             _eventBus.Publish(new BusinessSoftwareDetectedEvent(
-                                job.Name, businessStatus, DateTime.Now));
+                                job.Name, businessStatus, DateTime.UtcNow));
                             break;
                         }
                     }
@@ -167,7 +167,7 @@ public class BackupExecutor
 
                     var errorLog = new TransferLog
                     {
-                        Timestamp = DateTime.Now,
+                        Timestamp = DateTime.UtcNow,
                         BackupName = job.Name,
                         SourcePath = _pathAdapter.ToUNC(file.Path),
                         DestPath = _pathAdapter.ToUNC(targetFilePath),
@@ -192,7 +192,7 @@ public class BackupExecutor
 
                 if (strategy is FullBackupStrategy)
                 {
-                    job.MarkFullBackupCompleted(DateTime.Now);
+                    job.MarkFullBackupCompleted(DateTime.UtcNow);
                 }
             }
         }
