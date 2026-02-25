@@ -73,4 +73,17 @@ public class AsyncManualResetEventTests
         Assert.Equal(waitTask, race2);
         await waitTask;
     }
+
+    [Fact]
+    public void IsSet_AfterSetAndReset_ReflectsCurrentState()
+    {
+        var mre = new AsyncManualResetEvent();
+        Assert.True(mre.IsSet);
+
+        mre.Reset();
+        Assert.False(mre.IsSet);
+
+        mre.Set();
+        Assert.True(mre.IsSet);
+    }
 }
