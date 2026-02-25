@@ -71,6 +71,8 @@ public class BackupExecutor
             {
                 ct.ThrowIfCancellationRequested();
                 await pauseGate.WaitAsync(ct).ConfigureAwait(false);
+                // TODO EPIC-02: step 1 — await PriorityFileGate for priority extensions
+                // TODO EPIC-03: step 2 — await LargeFileGate for files > threshold KB
 
                 var relativePath = Path.GetRelativePath(sourcePath, file.Path);
                 var targetFilePath = Path.Combine(targetPath, relativePath);
