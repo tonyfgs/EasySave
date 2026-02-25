@@ -124,4 +124,20 @@ public class AsyncManualResetEventTests
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => mre.WaitAsync(cancelledToken));
     }
+
+    [Fact]
+    public async Task WaitAsync_WithTokenCancelledDuringWait_ThrowsOperationCanceledException()
+    {
+        var mre = new AsyncManualResetEvent(initialState: false);
+        using var cts = new CancellationTokenSource();
+
+        var waitTask = mre.WaitAsync(cts.Token);
+
+        cts.CancelAfter(50);
+
+        var exceptionTask = Assert.ThrowsAsync<OperationCanceledException>(() => waitTask);
+        var completedTask = await Task.WhenAny(exceptionTask, Task.Delay(300));
+        Assert.Equal(exceptionTask, completedTask);
+        await exceptionTask;
+    }
 }
