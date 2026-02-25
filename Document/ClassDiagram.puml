@@ -339,6 +339,15 @@ package "Application" #E8F5E9 {
     + GetCurrentLanguage(): Language
     + ChangeLanguage(lang: Language): void
   }
+
+  class AsyncManualResetEvent <<concurrency>> {
+    - _tcs: volatile TaskCompletionSource<bool>
+    + AsyncManualResetEvent(initialState: bool)
+    + WaitAsync(ct: CancellationToken): Task
+    + Set(): void
+    + Reset(): void
+    + IsSet: bool
+  }
 }
 
 ' ===== EASYLOG (External DLL) =====
