@@ -31,9 +31,11 @@ public class BackupExecutionService
         _eventBus = eventBus;
     }
 
+    [Obsolete("Deadlocks on UI threads. Use ExecuteJobsAsync instead.")]
     public List<JobExecutionResult> ExecuteJobs(List<int> jobIds)
         => ExecuteJobsAsync(jobIds).GetAwaiter().GetResult();
 
+    [Obsolete("Deadlocks on UI threads. Use ExecuteAllJobsAsync instead.")]
     public List<JobExecutionResult> ExecuteAllJobs()
         => ExecuteAllJobsAsync().GetAwaiter().GetResult();
 

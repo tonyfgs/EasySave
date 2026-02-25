@@ -17,9 +17,11 @@ public class ExecuteJobCommand : ICommand
     {
         try
         {
+#pragma warning disable CS0618 // Console has no SynchronizationContext — sync shims are safe here
             var results = args.Count == 1 && args[0] == "*"
                 ? _executionService.ExecuteAllJobs()
                 : _executionService.ExecuteJobs(args.Select(int.Parse).ToList());
+#pragma warning restore CS0618
 
             foreach (var r in results)
             {
