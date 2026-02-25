@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Windows.Input;
 using Application.DTOs;
 using Application.Events;
@@ -11,12 +12,17 @@ using Model;
 namespace GUI.ViewModels;
 
 
-public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedEvent>, IEventHandler<BusinessSoftwareDetectedEvent>
+public class ExecuteJobViewModel : ObservableObject,
+    IEventHandler<StateChangedEvent>,
+    IEventHandler<BusinessSoftwareDetectedEvent>,
+    IEventHandler<StopRequestedEvent>
 {
     private readonly BackupExecutionService _executionService;
     private readonly JobManagementService _jobManagementService;
     private readonly IEventBus _eventBus;
     private bool _isExecuting;
+    private int _pendingUiUpdate;
+    private readonly HashSet<int> _stoppedJobIds = new();
     private string _statusMessage = string.Empty;
     private int _overallProgress;
     private string _currentFile = string.Empty;
@@ -74,9 +80,6 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
     public ICommand ExecuteSelectedCommand { get; }
     public ICommand ExecuteAllCommand { get; }
     public ICommand ToggleJobSelectionCommand { get; }
-    
-    public ICommand ExecutePausedCommand { get; }
-    public ICommand ExecuteStopCommand { get; }
 
     public ExecuteJobViewModel()
     {
@@ -87,6 +90,7 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         // Subscribe to real-time progress events
         _eventBus.Subscribe<StateChangedEvent>(this);
         _eventBus.Subscribe<BusinessSoftwareDetectedEvent>(this);
+        _eventBus.Subscribe<StopRequestedEvent>(this);
 
         ExecuteSelectedCommand = new RelayCommand(
             async () => await ExecuteSelectedAsync(),
@@ -110,7 +114,7 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         var jobs = _jobManagementService.ListJobs();
         foreach (var job in jobs)
         {
-            var currentProgress = new JobProgress(new StateSnapshot { Name = job.Name }, job);
+            var currentProgress = new JobProgress(new StateSnapshot { Name = job.Name }, job, _eventBus);
             AvailableJobs.Add(currentProgress);
         }
         
@@ -245,6 +249,20 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         }
     }
 
+    // Unselect the stopped job immediately when Stop is clicked.
+    // The reset happens later once the final End state event arrives.
+    public void Handle(StopRequestedEvent @event)
+    {
+        _stoppedJobIds.Add(@event.JobId);
+
+        var jobProgress = AvailableJobs.FirstOrDefault(jp => jp.Job.Id == @event.JobId);
+        if (jobProgress is null) return;
+
+        jobProgress.IsSelected = false;
+        SelectedJobs.Remove(jobProgress.Job);
+        ((RelayCommand)ExecuteSelectedCommand).RaiseCanExecuteChanged();
+    }
+
     // Handle business software detection — show clear blocking message
     public void Handle(BusinessSoftwareDetectedEvent @event)
     {
@@ -256,19 +274,32 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         });
     }
 
-    // Handle real-time progress updates from StateChangedEvent
+    // Handle real-time progress updates from StateChangedEvent.
+    // Throttle: only one pending UI callback at a time for routine Active-state updates.
+    // Significant state changes (Paused, End, Error…) always go through immediately.
     public void Handle(StateChangedEvent @event)
     {
         var snapshot = @event.Snapshot;
+        bool isProgressUpdate = snapshot.State == JobState.Active;
 
-        // Update UI on main thread
+        if (isProgressUpdate && Interlocked.CompareExchange(ref _pendingUiUpdate, 1, 0) != 0)
+            return;
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            if (isProgressUpdate) Interlocked.Exchange(ref _pendingUiUpdate, 0);
+
             OverallProgress = snapshot.Progress;
             FilesProcessed = snapshot.TotalFiles - snapshot.FilesRemaining;
             TotalFiles = snapshot.TotalFiles;
             JobProgress? jobToUpdate = AvailableJobs.FirstOrDefault(j => j.Name == snapshot.Name);
-            jobToUpdate?.Update(snapshot);
+            if (jobToUpdate != null)
+            {
+                if (snapshot.State == JobState.End && _stoppedJobIds.Remove(jobToUpdate.Job.Id))
+                    jobToUpdate.Reset();
+                else
+                    jobToUpdate.Update(snapshot);
+            }
 
             if (!string.IsNullOrEmpty(snapshot.CurrentSourceFile))
             {

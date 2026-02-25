@@ -6,7 +6,9 @@ using Model;
 
 namespace Application.Services;
 
-public class BackupExecutor
+public class BackupExecutor :
+    IEventHandler<PauseRequestedEvent>,
+    IEventHandler<StopRequestedEvent>
 {
     private readonly IFileSystemGateway _fileSystem;
     private readonly IPathAdapter _pathAdapter;
@@ -17,6 +19,12 @@ public class BackupExecutor
     private readonly IEncryptionConfig _encryptionConfig;
     private readonly IBusinessSoftwareDetector _businessSoftwareDetector;
     private readonly IBusinessSoftwareConfig _businessSoftwareConfig;
+
+    private readonly ManualResetEventSlim _pauseHandle = new(true);
+    private volatile bool _stopRequested;
+    private volatile bool _isPaused;
+    private int _currentJobId = -1;
+    private string _currentJobName = string.Empty;
 
     public BackupExecutor(
         IFileSystemGateway fileSystem,
@@ -38,10 +46,42 @@ public class BackupExecutor
         _encryptionConfig = encryptionConfig;
         _businessSoftwareDetector = businessSoftwareDetector;
         _businessSoftwareConfig = businessSoftwareConfig;
+
+        _eventBus.Subscribe<PauseRequestedEvent>(this);
+        _eventBus.Subscribe<StopRequestedEvent>(this);
+    }
+
+    public void Handle(PauseRequestedEvent e)
+    {
+        if (e.JobId != _currentJobId) return;
+        // Toggle: only touch thread-safe primitives — tracker state is set by the background thread
+        if (_isPaused)
+        {
+            _isPaused = false;
+            _pauseHandle.Set();
+        }
+        else
+        {
+            _isPaused = true;
+            _pauseHandle.Reset();
+        }
+    }
+
+    public void Handle(StopRequestedEvent e)
+    {
+        if (e.JobId != _currentJobId) return;
+        _stopRequested = true;
+        _pauseHandle.Set();
     }
 
     public BackupResult Execute(BackupJob job, IBackupStrategy strategy)
     {
+        _currentJobId = job.Id;
+        _currentJobName = job.Name;
+        _stopRequested = false;
+        _isPaused = false;
+        _pauseHandle.Set();
+
         var stopwatch = Stopwatch.StartNew();
         var errors = new List<string>();
         int filesProcessed = 0;
@@ -62,6 +102,32 @@ public class BackupExecutor
 
             foreach (var file in filesToCopy)
             {
+                if (_stopRequested)
+                {
+                    _tracker.SetState(JobState.Stopping);
+                    _tracker.ClearCurrentFile();
+                    _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                    break;
+                }
+
+                if (_isPaused)
+                {
+                    _tracker.SetState(JobState.Paused);
+                    _tracker.ClearCurrentFile();
+                    _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                    _pauseHandle.Wait();
+
+                    if (_stopRequested)
+                    {
+                        _tracker.SetState(JobState.Stopping);
+                        _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                        break;
+                    }
+
+                    _tracker.SetState(JobState.Active);
+                    _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+                }
+
                 var relativePath = Path.GetRelativePath(sourcePath, file.Path);
                 var targetFilePath = Path.Combine(targetPath, relativePath);
 
@@ -164,7 +230,13 @@ public class BackupExecutor
                 }
             }
 
-            if (!blockedByBusinessSoftware)
+            if (_stopRequested && !blockedByBusinessSoftware)
+            {
+                _tracker.SetState(JobState.End);
+                _tracker.ClearCurrentFile();
+                _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
+            }
+            else if (!blockedByBusinessSoftware)
             {
                 _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
                 _tracker.ClearCurrentFile();
@@ -183,6 +255,9 @@ public class BackupExecutor
         }
 
         stopwatch.Stop();
+
+        _currentJobId = -1;
+        _currentJobName = string.Empty;
 
         if (errors.Count > 0)
             return BackupResult.Fail(errors, stopwatch.Elapsed);

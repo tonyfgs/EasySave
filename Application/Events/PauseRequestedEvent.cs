@@ -1,3 +1,3 @@
 namespace Application.Events;
 
-public record PauseRequestedEvent (int JobId);
+public record PauseRequestedEvent(int JobId);

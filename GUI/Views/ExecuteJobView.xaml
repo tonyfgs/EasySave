@@ -50,9 +50,12 @@
                             </VerticalStackLayout>
                             
                             <HorizontalStackLayout Grid.Column="2" Spacing="4" VerticalOptions="Center">
-                                <Button Text="Pause" IsVisible="{Binding IsSelected}" Command="{Binding }"/>
-                                <Button Text="Stop" IsVisible="{Binding IsSelected}"
-                                        Command="{Binding }"/>
+                                <Button Text="{Binding PauseResumeLabel}"
+                                        IsVisible="{Binding IsSelected}"
+                                        Command="{Binding PauseCommand}"/>
+                                <Button Text="Stop"
+                                        IsVisible="{Binding IsSelected}"
+                                        Command="{Binding StopCommand}"/>
                                 <Label Text="{Binding Progress, StringFormat='{0}%'}"
                                        FontSize="12" TextColor="#1976D2"
                                        IsVisible="{Binding IsSelected}"/>
