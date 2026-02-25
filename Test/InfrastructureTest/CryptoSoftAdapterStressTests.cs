@@ -197,11 +197,18 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
                 while (deadline.Elapsed < duration)
                 {
                     var fileIndex = (clientIndex + requestIndex * ConcurrentClients) % corpusLength;
-                    var filePath = _corpus.FilePaths[fileIndex];
+                    var sourceFile = _corpus.FilePaths[fileIndex];
+
+                    // Spec protocol: copy shared source -> encrypt temp copy -> delete temp copy
+                    var tempFile = Path.Combine(Path.GetTempPath(),
+                        $"easysave_stress_{clientIndex}_{requestIndex}_{Path.GetFileName(sourceFile)}");
+                    File.Copy(sourceFile, tempFile, overwrite: true);
 
                     var sw = Stopwatch.StartNew();
-                    var result = adapter.EncryptFile(filePath);
+                    var result = adapter.EncryptFile(tempFile);
                     sw.Stop();
+
+                    try { File.Delete(tempFile); } catch { /* best-effort cleanup */ }
 
                     Interlocked.Increment(ref totalRequests);
 

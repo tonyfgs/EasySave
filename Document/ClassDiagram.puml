@@ -908,6 +908,7 @@ IEncryptionConfig <|.. AppConfiguration
 IBusinessSoftwareConfig <|.. AppConfiguration
 IEncryptionService <|.. DisabledEncryptionService
 IEncryptionService <|.. CryptoSoftAdapter
+IDisposable <|.. CryptoSoftAdapter
 CryptoSoftAdapter "1" --> "1" StderrRingBuffer : captures stderr via
 CryptoSoftAdapter "1" --> "1" IEncryptionConfig : reads config via
 IBusinessSoftwareDetector <|.. DisabledBusinessSoftwareDetector
