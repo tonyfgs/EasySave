@@ -26,6 +26,7 @@ public static class ServiceLocator
     public static IStateManager StateManager { get; private set; } = null!;
     public static AppConfiguration AppConfiguration { get; private set; } = null!;
     public static IProcessValidator ProcessValidator { get; private set; } = null!;
+    public static IProcessNameResolver ProcessNameResolver { get; private set; } = null!;
 
     public static void Initialize()
     {
@@ -69,6 +70,7 @@ public static class ServiceLocator
         IEncryptionConfig encryptionConfig = appConfig;
         var businessSoftwareDetector = new ProcessDetector(appConfig);
         ProcessValidator = businessSoftwareDetector;
+        ProcessNameResolver = new ProcessNameResolver();
         IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
 
         var backupExecutor = new BackupExecutor(

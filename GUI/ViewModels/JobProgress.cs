@@ -32,7 +32,13 @@ public sealed class JobProgress : ObservableObject
     {
         _snapshot = snapshot;
         Job = job;
-        PauseCommand = new RelayCommand(() => eventBus.Publish(new PauseRequestedEvent(job.Id)));
+        PauseCommand = new RelayCommand(() =>
+        {
+            if (IsPaused)
+                eventBus.Publish(new ResumeRequestedEvent(job.Id));
+            else
+                eventBus.Publish(new PauseRequestedEvent(job.Id));
+        });
         StopCommand = new RelayCommand(() => eventBus.Publish(new StopRequestedEvent(job.Id)));
     }
 

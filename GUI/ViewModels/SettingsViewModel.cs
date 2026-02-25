@@ -5,17 +5,17 @@ using Application.Ports;
 using Application.Services;
 using GUI.Helpers;
 using GUI.Services;
-using Infrastructure;
 using Shared;
 
 namespace GUI.ViewModels;
 
 public class SettingsViewModel : ObservableObject
 {
-    private readonly AppConfiguration _appConfig;
+    private readonly Infrastructure.AppConfiguration _appConfig;
     private readonly LanguageApplicationService _languageService;
     private readonly LocalizationService _localization;
     private readonly IProcessValidator _processValidator;
+    private readonly IProcessNameResolver _processNameResolver;
 
     private Language _selectedLanguage;
     private LogFormat _selectedLogFormat;
@@ -24,21 +24,6 @@ public class SettingsViewModel : ObservableObject
     private string _largeFileSizeThresholdKb = "0";
     private string _processNotRunningWarning = string.Empty;
     private bool _isLoading;
-
-    // Platform-aware mapping: display name → OS-specific process name
-    private record SoftwareEntry(string Display, string Windows, string MacOS, string Linux);
-
-    private static readonly IReadOnlyList<SoftwareEntry> SoftwareMapping = new SoftwareEntry[]
-    {
-        new("Calculator", "CalculatorApp",  "Calculator",       "gnome-calculator"),
-        new("Notepad",    "notepad",        "TextEdit",         "gedit"),
-        new("Word",       "WINWORD",        "Microsoft Word",   "libreoffice"),
-        new("Excel",      "EXCEL",          "Microsoft Excel",  "libreoffice"),
-        new("Chrome",     "chrome",         "Google Chrome",    "google-chrome"),
-        new("Firefox",    "firefox",        "firefox",          "firefox"),
-        new("Teams",      "ms-teams",       "Microsoft Teams",  "teams"),
-        new("Slack",      "slack",          "Slack",            "slack"),
-    };
 
     public Language SelectedLanguage
     {
@@ -111,8 +96,7 @@ public class SettingsViewModel : ObservableObject
     };
 
     // Available items are display names only — process name resolution happens on save/load
-    public List<string> AvailableBusinessSoftware { get; } =
-        SoftwareMapping.Select(e => e.Display).ToList();
+    public List<string> AvailableBusinessSoftware { get; }
 
     // Button colors for language
     public string EnglishButtonColor => _selectedLanguage == Language.EN ? "#4CAF50" : "#9E9E9E";
@@ -137,6 +121,9 @@ public class SettingsViewModel : ObservableObject
         _languageService = ServiceLocator.LanguageApplicationService;
         _localization = ServiceLocator.LocalizationService;
         _processValidator = ServiceLocator.ProcessValidator;
+        _processNameResolver = ServiceLocator.ProcessNameResolver;
+
+        AvailableBusinessSoftware = _processNameResolver.GetAvailableDisplayNames().ToList();
 
         SelectEnglishCommand = new RelayCommand(SelectEnglish);
         SelectFrenchCommand = new RelayCommand(SelectFrench);
@@ -150,47 +137,27 @@ public class SettingsViewModel : ObservableObject
         LoadSettings();
     }
 
-    // Returns the OS-specific process name for a display name.
-    // If the display name is not in the mapping, returns it as-is (custom entry).
-    private static string GetProcessName(string displayName)
-    {
-        var entry = SoftwareMapping.FirstOrDefault(e => e.Display == displayName);
-        if (entry is null) return displayName;
-        return OperatingSystem.IsWindows()                                     ? entry.Windows
-             : OperatingSystem.IsMacOS() || OperatingSystem.IsMacCatalyst() ? entry.MacOS
-             : entry.Linux;
-    }
-
-    // Reverse-maps a stored OS process name back to its display name.
-    // If not found in the mapping, returns the raw process name unchanged.
-    private static string GetDisplayName(string processName)
-    {
-        var entry = SoftwareMapping.FirstOrDefault(e =>
-            e.Windows == processName || e.MacOS == processName || e.Linux == processName);
-        return entry?.Display ?? processName;
-    }
-
     private void OnBusinessSoftwareChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         var displayName = SelectedBusinessSoftware.FirstOrDefault();
         if (string.IsNullOrWhiteSpace(displayName))
         {
-            ProcessNotRunningWarning = string.Empty;
             if (!_isLoading)
             {
+                ProcessNotRunningWarning = string.Empty;
                 _appConfig.SetBusinessSoftwareName(string.Empty);
                 _appConfig.Save();
             }
             return;
         }
 
-        var processName = GetProcessName(displayName);
-        ProcessNotRunningWarning = _processValidator.IsProcessRunning(processName)
-            ? string.Empty
-            : _localization.ProcessNotRunningWarning;
-
         if (!_isLoading)
         {
+            var processName = _processNameResolver.GetProcessName(displayName);
+            ProcessNotRunningWarning = _processValidator.IsProcessRunning(processName)
+                ? string.Empty
+                : _localization.ProcessNotRunningWarning;
+
             _appConfig.SetBusinessSoftwareName(processName);
             _appConfig.Save();
         }
@@ -257,11 +224,11 @@ public class SettingsViewModel : ObservableObject
             var storedProcessName = _appConfig.GetBusinessSoftwareName();
             if (!string.IsNullOrWhiteSpace(storedProcessName))
             {
-                var displayName = GetDisplayName(storedProcessName);
+                var displayName = _processNameResolver.GetDisplayName(storedProcessName);
                 SelectedBusinessSoftware.Add(displayName);
 
                 // If the stored value was a display name (not a real OS process name), migrate it now.
-                var correctProcessName = GetProcessName(displayName);
+                var correctProcessName = _processNameResolver.GetProcessName(displayName);
                 if (correctProcessName != storedProcessName)
                 {
                     _appConfig.SetBusinessSoftwareName(correctProcessName);
@@ -292,7 +259,7 @@ public class SettingsViewModel : ObservableObject
 
         // Translate the display name to the OS-specific process name before persisting
         var displayName = SelectedBusinessSoftware.FirstOrDefault() ?? string.Empty;
-        _appConfig.SetBusinessSoftwareName(GetProcessName(displayName));
+        _appConfig.SetBusinessSoftwareName(_processNameResolver.GetProcessName(displayName));
         _appConfig.SetDetectionEnabled(DetectionEnabled);
 
         if (long.TryParse(_largeFileSizeThresholdKb, out var threshold))

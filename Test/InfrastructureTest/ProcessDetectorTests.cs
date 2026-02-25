@@ -52,8 +52,8 @@ public class ProcessDetectorTests
     public void GetStatus_WhenProcessExists_ReturnsRunning()
     {
         _configMock.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _configMock.Setup(c => c.GetBusinessSoftwareName()).Returns("dotnet");
-        var detector = new ProcessDetector(_configMock.Object);
+        _configMock.Setup(c => c.GetBusinessSoftwareName()).Returns("fake-process");
+        var detector = new FakeProcessDetector(_configMock.Object, found: true);
 
         var result = detector.GetStatus();
 
@@ -70,6 +70,44 @@ public class ProcessDetectorTests
         var result = detector.GetStatus();
 
         Assert.Equal(BusinessSoftwareStatus.Error, result);
+    }
+
+    // IsProcessRunning tests
+
+    [Fact]
+    public void IsProcessRunning_WhenNullOrWhitespace_ReturnsFalse()
+    {
+        var detector = new ProcessDetector(_configMock.Object);
+        Assert.False(detector.IsProcessRunning(null!));
+        Assert.False(detector.IsProcessRunning(""));
+        Assert.False(detector.IsProcessRunning("   "));
+    }
+
+    [Fact]
+    public void IsProcessRunning_WhenProcessFound_ReturnsTrue()
+    {
+        var detector = new FakeProcessDetector(_configMock.Object, found: true);
+        Assert.True(detector.IsProcessRunning("anything"));
+    }
+
+    [Fact]
+    public void IsProcessRunning_WhenProcessNotFound_ReturnsFalse()
+    {
+        var detector = new FakeProcessDetector(_configMock.Object, found: false);
+        Assert.False(detector.IsProcessRunning("anything"));
+    }
+
+    [Fact]
+    public void IsProcessRunning_WhenExceptionOccurs_ReturnsFalse()
+    {
+        var detector = new ThrowingProcessDetector(_configMock.Object);
+        Assert.False(detector.IsProcessRunning("anything"));
+    }
+
+    private class FakeProcessDetector(IBusinessSoftwareConfig config, bool found) : ProcessDetector(config)
+    {
+        protected override System.Diagnostics.Process[] FindProcesses(string name)
+            => found ? [System.Diagnostics.Process.GetCurrentProcess()] : [];
     }
 
     private class ThrowingProcessDetector : ProcessDetector

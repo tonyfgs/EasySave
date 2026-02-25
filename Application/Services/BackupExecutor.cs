@@ -8,6 +8,7 @@ namespace Application.Services;
 
 public class BackupExecutor :
     IEventHandler<PauseRequestedEvent>,
+    IEventHandler<ResumeRequestedEvent>,
     IEventHandler<StopRequestedEvent>
 {
     private readonly IFileSystemGateway _fileSystem;
@@ -23,8 +24,9 @@ public class BackupExecutor :
     private readonly ManualResetEventSlim _pauseHandle = new(true);
     private volatile bool _stopRequested;
     private volatile bool _isPaused;
-    private int _currentJobId = -1;
+    private volatile int _currentJobId = -1;
     private string _currentJobName = string.Empty;
+    private CancellationTokenSource _stopCts = new();
 
     public BackupExecutor(
         IFileSystemGateway fileSystem,
@@ -48,29 +50,29 @@ public class BackupExecutor :
         _businessSoftwareConfig = businessSoftwareConfig;
 
         _eventBus.Subscribe<PauseRequestedEvent>(this);
+        _eventBus.Subscribe<ResumeRequestedEvent>(this);
         _eventBus.Subscribe<StopRequestedEvent>(this);
     }
 
     public void Handle(PauseRequestedEvent e)
     {
         if (e.JobId != _currentJobId) return;
-        // Toggle: only touch thread-safe primitives — tracker state is set by the background thread
-        if (_isPaused)
-        {
-            _isPaused = false;
-            _pauseHandle.Set();
-        }
-        else
-        {
-            _isPaused = true;
-            _pauseHandle.Reset();
-        }
+        _isPaused = true;
+        _pauseHandle.Reset();
+    }
+
+    public void Handle(ResumeRequestedEvent e)
+    {
+        if (e.JobId != _currentJobId) return;
+        _isPaused = false;
+        _pauseHandle.Set();
     }
 
     public void Handle(StopRequestedEvent e)
     {
         if (e.JobId != _currentJobId) return;
         _stopRequested = true;
+        _stopCts.Cancel();
         _pauseHandle.Set();
     }
 
@@ -81,6 +83,8 @@ public class BackupExecutor :
         _stopRequested = false;
         _isPaused = false;
         _pauseHandle.Set();
+        _stopCts.Dispose();
+        _stopCts = new CancellationTokenSource();
 
         var stopwatch = Stopwatch.StartNew();
         var errors = new List<string>();
@@ -115,7 +119,11 @@ public class BackupExecutor :
                     _tracker.SetState(JobState.Paused);
                     _tracker.ClearCurrentFile();
                     _eventBus.Publish(new StateChangedEvent(_tracker.BuildSnapshot(job.Name)));
-                    _pauseHandle.Wait();
+                    try
+                    {
+                        _pauseHandle.Wait(_stopCts.Token);
+                    }
+                    catch (OperationCanceledException) { /* Stop arrived while paused — fall through */ }
 
                     if (_stopRequested)
                     {
