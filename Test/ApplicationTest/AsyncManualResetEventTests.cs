@@ -54,4 +54,23 @@ public class AsyncManualResetEventTests
         Assert.Equal(waitTask, completedTask);
         await waitTask;
     }
+
+    [Fact]
+    public async Task WaitAsync_FullSignalCycle_SuspendsAfterResetAndCompletesAfterSet()
+    {
+        var mre = new AsyncManualResetEvent();
+        Assert.True(mre.IsSet);
+
+        mre.Reset();
+        var waitTask = mre.WaitAsync();
+
+        var race1 = await Task.WhenAny(waitTask, Task.Delay(200));
+        Assert.NotEqual(waitTask, race1);
+
+        mre.Set();
+
+        var race2 = await Task.WhenAny(waitTask, Task.Delay(100));
+        Assert.Equal(waitTask, race2);
+        await waitTask;
+    }
 }
