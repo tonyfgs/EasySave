@@ -172,4 +172,66 @@ public class LocalFileSystemGatewayTests : IDisposable
         Assert.True(bytes > 0);
         Assert.Equal(File.ReadAllText(source), File.ReadAllText(target));
     }
+
+    // --- CopyFileAsync tests (00-08) ---
+
+    [Fact]
+    public async Task CopyFileAsync_ShouldCopyAndReturnByteCount()
+    {
+        var source = Path.Combine(_testDir, "source.txt");
+        var targetDir = Path.Combine(_testDir, "target");
+        Directory.CreateDirectory(targetDir);
+        var target = Path.Combine(targetDir, "dest.txt");
+        File.WriteAllText(source, "copy me async");
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        var bytes = await gateway.CopyFileAsync(source, target);
+
+        Assert.True(File.Exists(target));
+        Assert.True(bytes > 0);
+        Assert.Equal(File.ReadAllText(source), File.ReadAllText(target));
+    }
+
+    [Fact]
+    public async Task CopyFileAsync_ShouldCreateTargetSubdirectories()
+    {
+        var source = Path.Combine(_testDir, "source.txt");
+        var target = Path.Combine(_testDir, "deep", "nested", "dest.txt");
+        File.WriteAllText(source, "deep copy async");
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        var bytes = await gateway.CopyFileAsync(source, target);
+
+        Assert.True(File.Exists(target));
+        Assert.True(bytes > 0);
+    }
+
+    [Fact]
+    public async Task CopyFileAsync_CancelledToken_ShouldThrowOperationCancelled()
+    {
+        var source = Path.Combine(_testDir, "source.txt");
+        File.WriteAllText(source, "cancel me");
+        var target = Path.Combine(_testDir, "target", "dest.txt");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => gateway.CopyFileAsync(source, target, cts.Token));
+    }
+
+    [Fact]
+    public async Task CopyFileAsync_WithUnnormalizedPath_ShouldCopySuccessfully()
+    {
+        var source = Path.Combine(_testDir, "source.txt");
+        var unnormalizedTarget = Path.Combine(_testDir, "sub", "..", "target", "dest.txt");
+        File.WriteAllText(source, "normalize me async");
+        IFileSystemGateway gateway = new LocalFileSystemGateway();
+
+        var bytes = await gateway.CopyFileAsync(source, unnormalizedTarget);
+
+        var normalizedTarget = Path.GetFullPath(unnormalizedTarget);
+        Assert.True(File.Exists(normalizedTarget));
+        Assert.True(bytes > 0);
+    }
 }
