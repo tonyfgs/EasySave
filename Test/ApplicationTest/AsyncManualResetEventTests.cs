@@ -86,4 +86,32 @@ public class AsyncManualResetEventTests
         mre.Set();
         Assert.True(mre.IsSet);
     }
+
+    [Fact]
+    public async Task Set_CalledTwice_RemainsSignaled()
+    {
+        var mre = new AsyncManualResetEvent();
+
+        mre.Set();
+        mre.Set();
+
+        Assert.True(mre.IsSet);
+        var waitTask = mre.WaitAsync();
+        Assert.True(waitTask.IsCompleted);
+        await waitTask;
+    }
+
+    [Fact]
+    public async Task Reset_CalledTwice_RemainsUnsignaled()
+    {
+        var mre = new AsyncManualResetEvent(initialState: false);
+
+        mre.Reset();
+        mre.Reset();
+
+        Assert.False(mre.IsSet);
+        var waitTask = mre.WaitAsync();
+        var completedTask = await Task.WhenAny(waitTask, Task.Delay(200));
+        Assert.NotEqual(waitTask, completedTask);
+    }
 }
