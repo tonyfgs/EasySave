@@ -310,7 +310,7 @@ package "Application" #E8F5E9 {
     - encryptionConfig: IEncryptionConfig
     - businessSoftwareDetector: IBusinessSoftwareDetector
     - businessSoftwareConfig: IBusinessSoftwareConfig
-    + Execute(job: BackupJob,\n\t strategy: IBackupStrategy): BackupResult
+    + ExecuteAsync(job: BackupJob,\n\t strategy: IBackupStrategy,\n\t pauseGate: AsyncManualResetEvent,\n\t ct: CancellationToken): Task<BackupResult>
   }
 
   class JobManagementService {
@@ -329,8 +329,10 @@ package "Application" #E8F5E9 {
     - detector: IBusinessSoftwareDetector
     - detectorConfig: IBusinessSoftwareConfig
     - eventBus: IEventBus
-    + ExecuteJobs(jobIds: List<int>): List<JobExecutionResult>
-    + ExecuteAllJobs(): List<JobExecutionResult>
+    + <<Obsolete>> ExecuteJobs(jobIds: List<int>): List<JobExecutionResult>
+    + <<Obsolete>> ExecuteAllJobs(): List<JobExecutionResult>
+    + ExecuteJobsAsync(jobIds: List<int>,\n\t ct: CancellationToken): Task<List<JobExecutionResult>>
+    + ExecuteAllJobsAsync(ct: CancellationToken): Task<List<JobExecutionResult>>
   }
 
   class LanguageApplicationService {
@@ -835,6 +837,7 @@ BackupExecutor ..> FileDescriptor : processes
 BackupExecutor ..> TransferCompletedEvent : publishes
 BackupExecutor ..> StateChangedEvent : publishes
 BackupExecutor ..> IBackupStrategy : receives
+BackupExecutor ..> AsyncManualResetEvent : receives
 BackupExecutor "1" --> "1" IEncryptionService : encrypts via
 BackupExecutor "1" --> "1" IEncryptionConfig : reads extensions from
 BackupExecutor "1" --> "1" IBusinessSoftwareDetector : checks in-flight via
