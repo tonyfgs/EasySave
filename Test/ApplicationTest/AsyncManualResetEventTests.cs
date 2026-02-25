@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Application.Concurrency;
 
 namespace ApplicationTest;
@@ -139,5 +140,56 @@ public class AsyncManualResetEventTests
         var completedTask = await Task.WhenAny(exceptionTask, Task.Delay(300));
         Assert.Equal(exceptionTask, completedTask);
         await exceptionTask;
+    }
+
+    [Fact]
+    public async Task StressTest_ConcurrentSetResetAndWait_CompletesWithin5Seconds()
+    {
+        var mre = new AsyncManualResetEvent();
+        const int setterCount = 10;
+        const int waiterCount = 10;
+        const int iterations = 1000;
+        var exceptions = new ConcurrentBag<Exception>();
+
+        var setterTasks = Enumerable.Range(0, setterCount).Select(_ => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < iterations; i++)
+                {
+                    mre.Set();
+                    mre.Reset();
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        var waiterTasks = Enumerable.Range(0, waiterCount).Select(_ => Task.Run(async () =>
+        {
+            try
+            {
+                for (int i = 0; i < iterations; i++)
+                {
+                    await mre.WaitAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        // After all setters finish, signal once so waiters drain
+        // (event stays signaled since no more Resets, all WaitAsync hit fast path)
+        _ = Task.WhenAll(setterTasks).ContinueWith(_ => mre.Set());
+
+        var allTasks = Task.WhenAll(setterTasks.Concat(waiterTasks));
+        var completedTask = await Task.WhenAny(allTasks, Task.Delay(5000));
+
+        Assert.Equal(allTasks, completedTask);
+        Assert.Empty(exceptions);
     }
 }
