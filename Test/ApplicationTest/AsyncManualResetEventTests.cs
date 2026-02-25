@@ -19,4 +19,15 @@ public class AsyncManualResetEventTests
 
         Assert.False(mre.IsSet);
     }
+
+    [Fact]
+    public async Task WaitAsync_WhenSignaled_ReturnsCompletedTask()
+    {
+        var mre = new AsyncManualResetEvent();
+
+        var waitTask = mre.WaitAsync();
+
+        Assert.True(waitTask.IsCompleted);
+        await waitTask;
+    }
 }
