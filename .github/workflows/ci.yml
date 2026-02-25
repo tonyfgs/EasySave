@@ -51,6 +51,7 @@ jobs:
       - name: Test
         run: >
           dotnet test ${{ runner.os == 'Windows' && 'EasySave.sln' || 'EasySave.NoGUI.slnf' }} --no-build --configuration Release --verbosity normal
+          --filter "Category!=Stress"
           --logger "trx;LogFileName=test-results.trx"
           --collect:"XPlat Code Coverage"
           --results-directory ./TestResults
