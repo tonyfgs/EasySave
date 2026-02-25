@@ -25,6 +25,7 @@ public static class ServiceLocator
     public static IEventBus EventBus { get; private set; } = null!;
     public static IStateManager StateManager { get; private set; } = null!;
     public static AppConfiguration AppConfiguration { get; private set; } = null!;
+    public static IProcessValidator ProcessValidator { get; private set; } = null!;
 
     public static void Initialize()
     {
@@ -67,6 +68,7 @@ public static class ServiceLocator
         var encryptionService = new CryptoSoftAdapter(appConfig, cryptoSoftPath);
         IEncryptionConfig encryptionConfig = appConfig;
         var businessSoftwareDetector = new ProcessDetector(appConfig);
+        ProcessValidator = businessSoftwareDetector;
         IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
 
         var backupExecutor = new BackupExecutor(

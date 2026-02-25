@@ -81,6 +81,7 @@ public class LocalizationService : INotifyPropertyChanged
     public string BusinessSoftwareNameLabel => GetString("settings.business_software_name_label");
     public string BusinessSoftwareNamePlaceholder => GetString("settings.business_software_name_placeholder");
     public string BusinessSoftwareHelp => GetString("settings.business_software_help");
+    public string ProcessNotRunningWarning => GetString("settings.process_not_running_warning");
     public string BusinessSoftwareBlocked => GetString("execute.business_software_blocked");
     public string ExtensionsSearchPlaceholder => GetString("settings.extensions_search_placeholder");
     public string SoftwareSearchPlaceholder => GetString("settings.software_search_placeholder");
@@ -186,6 +187,7 @@ public class LocalizationService : INotifyPropertyChanged
             ["settings.business_software_name_label"] = new() { [Language.EN] = "Business Software Name", [Language.FR] = "Nom du Logiciel Métier" },
             ["settings.business_software_name_placeholder"] = new() { [Language.EN] = "e.g., calculator, notepad", [Language.FR] = "ex: calculatrice, bloc-notes" },
             ["settings.business_software_help"] = new() { [Language.EN] = "Backup will be paused while this software is running", [Language.FR] = "La sauvegarde sera mise en pause pendant l'exécution de ce logiciel" },
+            ["settings.process_not_running_warning"] = new() { [Language.EN] = "⚠ No process with this name is currently running", [Language.FR] = "⚠ Aucun processus avec ce nom n'est actuellement en cours d'exécution" },
             ["settings.extensions_search_placeholder"] = new() { [Language.EN] = "Search or add extension...", [Language.FR] = "Rechercher ou ajouter une extension..." },
             ["settings.software_search_placeholder"] = new() { [Language.EN] = "Search or add software...", [Language.FR] = "Rechercher ou ajouter un logiciel..." },
             ["settings.large_file_title"] = new() { [Language.EN] = "Large File Transfer", [Language.FR] = "Transfert de Fichiers Volumineux" },

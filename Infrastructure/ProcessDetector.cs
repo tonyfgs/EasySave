@@ -3,7 +3,7 @@ using Application.Ports;
 
 namespace Infrastructure;
 
-public class ProcessDetector : IBusinessSoftwareDetector
+public class ProcessDetector : IBusinessSoftwareDetector, IProcessValidator
 {
     private readonly IBusinessSoftwareConfig _config;
 
@@ -35,6 +35,19 @@ public class ProcessDetector : IBusinessSoftwareDetector
         {
             return BusinessSoftwareStatus.Error;
         }
+    }
+
+    public bool IsProcessRunning(string processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName)) return false;
+        try
+        {
+            var processes = FindProcesses(processName);
+            var found = processes.Length > 0;
+            foreach (var p in processes) p.Dispose();
+            return found;
+        }
+        catch { return false; }
     }
 
     protected virtual Process[] FindProcesses(string name)

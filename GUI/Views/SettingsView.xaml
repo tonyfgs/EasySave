@@ -115,6 +115,12 @@
                         AllowCustomItems="True"
                         MaxItems="1"
                         IsEnabled="{Binding DetectionEnabled}"/>
+
+                    <Label Text="{Binding ProcessNotRunningWarning}"
+                           TextColor="#F57C00"
+                           FontSize="12"
+                           IsVisible="{Binding ProcessNotRunningWarning, Converter={StaticResource StringNotEmptyConverter}}"
+                           LineBreakMode="WordWrap"/>
                 </VerticalStackLayout>
             </Border>
 
