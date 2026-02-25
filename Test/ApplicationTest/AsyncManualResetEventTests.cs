@@ -30,4 +30,15 @@ public class AsyncManualResetEventTests
         Assert.True(waitTask.IsCompleted);
         await waitTask;
     }
+
+    [Fact]
+    public async Task WaitAsync_WhenUnsignaled_DoesNotCompleteWithin200ms()
+    {
+        var mre = new AsyncManualResetEvent(initialState: false);
+
+        var waitTask = mre.WaitAsync();
+
+        var completedTask = await Task.WhenAny(waitTask, Task.Delay(200));
+        Assert.NotEqual(waitTask, completedTask);
+    }
 }
