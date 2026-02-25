@@ -41,4 +41,17 @@ public class AsyncManualResetEventTests
         var completedTask = await Task.WhenAny(waitTask, Task.Delay(200));
         Assert.NotEqual(waitTask, completedTask);
     }
+
+    [Fact]
+    public async Task Set_WhenWaiterPending_UnblocksWithin100ms()
+    {
+        var mre = new AsyncManualResetEvent(initialState: false);
+        var waitTask = mre.WaitAsync();
+
+        mre.Set();
+
+        var completedTask = await Task.WhenAny(waitTask, Task.Delay(100));
+        Assert.Equal(waitTask, completedTask);
+        await waitTask;
+    }
 }
