@@ -137,8 +137,7 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
         {
             var jobIds = SelectedJobs.Select(j => j.Id).ToList();
 
-            // Run on background thread
-            var results = await Task.Run(() => _executionService.ExecuteJobs(jobIds));
+            var results = await _executionService.ExecuteJobsAsync(jobIds);
 
             // Update UI on main thread
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -192,8 +191,7 @@ public class ExecuteJobViewModel : ObservableObject, IEventHandler<StateChangedE
 
         try
         {
-            // Run on background thread
-            var results = await Task.Run(() => _executionService.ExecuteAllJobs());
+            var results = await _executionService.ExecuteAllJobsAsync();
 
             // Update UI on main thread
             await MainThread.InvokeOnMainThreadAsync(() =>
