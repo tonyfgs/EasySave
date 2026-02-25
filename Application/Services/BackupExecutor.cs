@@ -154,6 +154,7 @@ public class BackupExecutor
                 }
                 catch (OperationCanceledException)
                 {
+                    // TODO EPIC-04: D-02 requires deleting partial file at targetFilePath on stop
                     throw;
                 }
                 catch (Exception ex)

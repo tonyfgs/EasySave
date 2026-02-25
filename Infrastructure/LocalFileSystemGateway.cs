@@ -48,6 +48,7 @@ public class LocalFileSystemGateway : IFileSystemGateway
         var sourceSize = new FileInfo(source).Length;
         await using var sourceStream = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
         await using var targetStream = new FileStream(normalizedTarget, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 81920, useAsync: true);
+        // TODO EPIC-04: D-02 requires deleting partial file on cancellation/IOException
         await sourceStream.CopyToAsync(targetStream, 81920, ct);
         return sourceSize;
     }
