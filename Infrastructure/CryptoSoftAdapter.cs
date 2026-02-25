@@ -156,6 +156,8 @@ public class CryptoSoftAdapter : IEncryptionService, IDisposable
         // Try to start the server
         lock (_serverStartLock)
         {
+            if (_disposed) return false;
+
             // Double-check after lock
             if (IsServerRunning())
             {
@@ -207,8 +209,21 @@ public class CryptoSoftAdapter : IEncryptionService, IDisposable
 
                 // Begin async reading IMMEDIATELY after Start() to prevent deadlocks.
                 // These callbacks drain the OS pipe buffers as data arrives.
-                _serverProcess.BeginOutputReadLine();
-                _serverProcess.BeginErrorReadLine();
+                try
+                {
+                    _serverProcess.BeginOutputReadLine();
+                    _serverProcess.BeginErrorReadLine();
+                }
+                catch
+                {
+                    try { _serverProcess.Kill(entireProcessTree: true); } catch { }
+                    try { _serverProcess.WaitForExit(3000); } catch { }
+                    _serverProcess.Dispose();
+                    _serverProcess = null;
+                    _stdoutHandler = null;
+                    _stderrHandler = null;
+                    return false;
+                }
             }
             catch
             {

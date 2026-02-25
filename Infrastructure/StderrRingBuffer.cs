@@ -12,6 +12,9 @@ public sealed class StderrRingBuffer
 
     public StderrRingBuffer(int capacity = 200)
     {
+        if (capacity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity must be positive.");
+
         _capacity = capacity;
         _buffer = new Queue<string>(capacity);
     }
