@@ -54,7 +54,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_FullBackup_ShouldCopyAllFiles()
+    public async Task ExecuteAsync_FullBackup_ShouldCopyAllFiles()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -65,17 +65,17 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
         Assert.Equal(2, result.FilesProcessed);
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
-    public void Execute_ShouldPublishTransferCompletedEventPerFile()
+    public async Task ExecuteAsync_ShouldPublishTransferCompletedEventPerFile()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -85,15 +85,15 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEventBus.Verify(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()), Times.Once);
     }
 
     [Fact]
-    public void Execute_ShouldPublishStateChangedEvents()
+    public async Task ExecuteAsync_ShouldPublishStateChangedEvents()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -103,42 +103,42 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEventBus.Verify(bus => bus.Publish(It.IsAny<StateChangedEvent>()), Times.AtLeastOnce);
     }
 
     [Fact]
-    public void Execute_ShouldEnsureTargetDirectoryExists()
+    public async Task ExecuteAsync_ShouldEnsureTargetDirectoryExists()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(new List<FileDescriptor>());
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockFileSystem.Verify(fs => fs.EnsureDirectory(TargetPath), Times.Once);
     }
 
     [Fact]
-    public void Execute_NoFiles_ShouldReturnSuccessWithZeroFiles()
+    public async Task ExecuteAsync_NoFiles_ShouldReturnSuccessWithZeroFiles()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(new List<FileDescriptor>());
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
         Assert.Equal(0, result.FilesProcessed);
     }
 
     [Fact]
-    public void Execute_CopyFails_ShouldReturnFailureResult()
+    public async Task ExecuteAsync_CopyFails_ShouldReturnFailureResult()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -148,17 +148,17 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("Copy failed"));
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Copy failed"));
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.False(result.Success);
         Assert.NotEmpty(result.Errors);
     }
 
     [Fact]
-    public void Execute_ShouldConvertPathsToUNC()
+    public async Task ExecuteAsync_ShouldConvertPathsToUNC()
     {
         var srcFile = Path.Combine(SourcePath, "file1.txt");
         var dstFile = Path.Combine(TargetPath, "file1.txt");
@@ -172,16 +172,16 @@ public class BackupExecutorTests
         _mockPathAdapter.Setup(p => p.ToUNC(srcFile)).Returns("\\\\server\\src\\file1.txt");
         _mockPathAdapter.Setup(p => p.ToUNC(dstFile)).Returns("\\\\server\\dst\\file1.txt");
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEventBus.Verify(bus => bus.Publish(It.Is<TransferCompletedEvent>(
             e => e.Transfer.SourcePath.Contains("\\\\"))), Times.Once);
     }
 
     [Fact]
-    public void Execute_ShouldIncludeCurrentFileInStateSnapshot()
+    public async Task ExecuteAsync_ShouldIncludeCurrentFileInStateSnapshot()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -191,7 +191,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
         StateChangedEvent? capturedEvent = null;
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
@@ -201,7 +201,7 @@ public class BackupExecutorTests
                     capturedEvent = e;
             });
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.NotEqual(string.Empty, capturedEvent.Snapshot.CurrentSourceFile);
@@ -209,7 +209,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_ShouldPublishEndStateAfterCompletion()
+    public async Task ExecuteAsync_ShouldPublishEndStateAfterCompletion()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -219,13 +219,13 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
         var capturedEvents = new List<StateChangedEvent>();
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
             .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         var lastSnapshot = capturedEvents.Last().Snapshot;
         Assert.Equal(JobState.End, lastSnapshot.State);
@@ -233,7 +233,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_CopyFails_ShouldPublishTransferEventWithNegativeTime()
+    public async Task ExecuteAsync_CopyFails_ShouldPublishTransferEventWithNegativeTime()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -243,21 +243,21 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("Disk full"));
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Disk full"));
 
         TransferCompletedEvent? capturedEvent = null;
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.True(capturedEvent.Transfer.TransferTimeMs < 0);
     }
 
     [Fact]
-    public void Execute_SourcePathWithTrailingSlash_ShouldConstructCorrectTargetPath()
+    public async Task ExecuteAsync_SourcePathWithTrailingSlash_ShouldConstructCorrectTargetPath()
     {
         var srcWithSlash = SourcePath + Path.DirectorySeparatorChar;
         var dstWithSlash = TargetPath + Path.DirectorySeparatorChar;
@@ -272,11 +272,11 @@ public class BackupExecutorTests
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(normalizedSrc)).Returns(files);
 
         string? capturedTarget = null;
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Callback<string, string>((src, tgt) => capturedTarget = tgt)
-            .Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((src, tgt, ct) => capturedTarget = tgt)
+            .ReturnsAsync(100);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedTarget);
         Assert.Contains("subdir", capturedTarget);
@@ -284,7 +284,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_SourcePathWithoutTrailingSlash_ShouldConstructCorrectTargetPath()
+    public async Task ExecuteAsync_SourcePathWithoutTrailingSlash_ShouldConstructCorrectTargetPath()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -296,18 +296,18 @@ public class BackupExecutorTests
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
 
         string? capturedTarget = null;
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Callback<string, string>((src, tgt) => capturedTarget = tgt)
-            .Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((src, tgt, ct) => capturedTarget = tgt)
+            .ReturnsAsync(100);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedTarget);
         Assert.EndsWith("file1.txt", capturedTarget);
     }
 
     [Fact]
-    public void Execute_EmptySourceDir_ShouldPublishEndStateEvent()
+    public async Task ExecuteAsync_EmptySourceDir_ShouldPublishEndStateEvent()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -318,7 +318,7 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
             .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
         Assert.NotEmpty(capturedEvents);
@@ -326,7 +326,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_CopyFails_TransferTimeMs_ShouldBeExactlyMinusOne()
+    public async Task ExecuteAsync_CopyFails_TransferTimeMs_ShouldBeExactlyMinusOne()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -336,21 +336,21 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("Disk full"));
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Disk full"));
 
         TransferCompletedEvent? capturedEvent = null;
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.Equal(-1, capturedEvent.Transfer.TransferTimeMs);
     }
 
     [Fact]
-    public void Execute_FirstFileFails_ShouldContinueProcessingSecondFile()
+    public async Task ExecuteAsync_FirstFileFails_ShouldContinueProcessingSecondFile()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -361,24 +361,24 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.SetupSequence(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("File locked"))
-            .Returns(200);
+        _mockFileSystem.SetupSequence(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("File locked"))
+            .ReturnsAsync(200);
 
         var transferEvents = new List<TransferCompletedEvent>();
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => transferEvents.Add(e));
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
         Assert.Equal(2, transferEvents.Count);
         Assert.Equal(-1, transferEvents[0].Transfer.TransferTimeMs);
         Assert.True(transferEvents[1].Transfer.TransferTimeMs >= 0);
     }
 
     [Fact]
-    public void Execute_CopyFails_ErrorLog_ShouldContainCorrectPathsAndSize()
+    public async Task ExecuteAsync_CopyFails_ErrorLog_ShouldContainCorrectPathsAndSize()
     {
         var srcFile = Path.Combine(SourcePath, "data.bin");
         var dstFile = Path.Combine(TargetPath, "data.bin");
@@ -392,14 +392,14 @@ public class BackupExecutorTests
         _mockPathAdapter.Setup(p => p.ToUNC(srcFile)).Returns("\\\\server\\src\\data.bin");
         _mockPathAdapter.Setup(p => p.ToUNC(dstFile)).Returns("\\\\server\\dst\\data.bin");
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("Access denied"));
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Access denied"));
 
         TransferCompletedEvent? capturedEvent = null;
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.Equal("\\\\server\\src\\data.bin", capturedEvent.Transfer.SourcePath);
@@ -409,7 +409,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_CopyFails_ShouldPublishErrorState()
+    public async Task ExecuteAsync_CopyFails_ShouldPublishErrorState()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -419,14 +419,14 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("Disk full"));
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Disk full"));
 
         var capturedEvents = new List<StateChangedEvent>();
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
             .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         var lastSnapshot = capturedEvents.Last().Snapshot;
         Assert.Equal(JobState.Error, lastSnapshot.State);
@@ -434,7 +434,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_PartialFailure_ShouldPublishErrorState()
+    public async Task ExecuteAsync_PartialFailure_ShouldPublishErrorState()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -445,22 +445,22 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.SetupSequence(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Returns(100)
-            .Throws(new IOException("Disk full"));
+        _mockFileSystem.SetupSequence(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100)
+            .ThrowsAsync(new IOException("Disk full"));
 
         var capturedEvents = new List<StateChangedEvent>();
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
             .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         var lastSnapshot = capturedEvents.Last().Snapshot;
         Assert.Equal(JobState.Error, lastSnapshot.State);
     }
 
     [Fact]
-    public void Execute_NestedSubdir_ShouldPreserveExactRelativePath()
+    public async Task ExecuteAsync_NestedSubdir_ShouldPreserveExactRelativePath()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -472,11 +472,11 @@ public class BackupExecutorTests
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
 
         string? capturedTarget = null;
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()))
-            .Callback<string, string>((src, tgt) => capturedTarget = tgt)
-            .Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((src, tgt, ct) => capturedTarget = tgt)
+            .ReturnsAsync(100);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedTarget);
         var expectedTarget = Path.Combine(TargetPath, "a", "b", "c.txt");
@@ -484,7 +484,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_TrailingSlashInPaths_ShouldNormalizeAndCopySuccessfully()
+    public async Task ExecuteAsync_TrailingSlashInPaths_ShouldNormalizeAndCopySuccessfully()
     {
         var sourcePath = Path.GetFullPath("/src/");
         var targetPath = Path.GetFullPath("/dst/");
@@ -496,16 +496,16 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(sourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
         Assert.Equal(1, result.FilesProcessed);
     }
 
     [Fact]
-    public void Execute_PathNormalization_ShouldResolveRelativeSegments()
+    public async Task ExecuteAsync_PathNormalization_ShouldResolveRelativeSegments()
     {
         var sourcePath = Path.GetFullPath("/src");
         var targetPath = Path.GetFullPath("/dst");
@@ -517,16 +517,16 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(sourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
         Assert.Equal(1, result.FilesProcessed);
     }
 
     [Fact]
-    public void Execute_ShouldCallEnumerateFilesWithNormalizedPath()
+    public async Task ExecuteAsync_ShouldCallEnumerateFilesWithNormalizedPath()
     {
         var normalizedSource = Path.GetFullPath("/src/");
         var job = new BackupJob(1, "TestJob", "/src/", "/dst/", BackupType.Full);
@@ -534,13 +534,13 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(normalizedSource)).Returns(new List<FileDescriptor>());
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockFileSystem.Verify(fs => fs.EnumerateFiles(normalizedSource), Times.Once);
     }
 
     [Fact]
-    public void Execute_ShouldCallEnsureDirectoryWithNormalizedPath()
+    public async Task ExecuteAsync_ShouldCallEnsureDirectoryWithNormalizedPath()
     {
         var normalizedTarget = Path.GetFullPath("/dst/");
         var job = new BackupJob(1, "TestJob", "/src/", "/dst/", BackupType.Full);
@@ -548,7 +548,7 @@ public class BackupExecutorTests
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(Path.GetFullPath("/src/"))).Returns(new List<FileDescriptor>());
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockFileSystem.Verify(fs => fs.EnsureDirectory(normalizedTarget), Times.Once);
     }
@@ -556,7 +556,7 @@ public class BackupExecutorTests
     // --- Per-file encryption tests ---
 
     [Fact]
-    public void Execute_EncryptedExtension_ShouldCallEncryptFileAfterCopy()
+    public async Task ExecuteAsync_EncryptedExtension_ShouldCallEncryptFileAfterCopy()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -566,13 +566,13 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".docx" }.AsReadOnly());
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
             .Returns(new CryptoResult { Success = true, DurationMs = 75, ErrorCode = CryptoErrorCode.None });
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEncryptionService.Verify(
             s => s.EncryptFile(It.Is<string>(p => p.Contains("secret.docx"))),
@@ -580,7 +580,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_EncryptedExtension_ShouldSetEncryptionTimeMsFromCryptoResult()
+    public async Task ExecuteAsync_EncryptedExtension_ShouldSetEncryptionTimeMsFromCryptoResult()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -590,7 +590,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
@@ -600,14 +600,14 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.Equal(200, capturedEvent.Transfer.EncryptionTimeMs);
     }
 
     [Fact]
-    public void Execute_NonEncryptedExtension_ShouldNotCallEncryptFile()
+    public async Task ExecuteAsync_NonEncryptedExtension_ShouldNotCallEncryptFile()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -617,17 +617,17 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
-    public void Execute_NonEncryptedExtension_EncryptionTimeMsShouldBeZero()
+    public async Task ExecuteAsync_NonEncryptedExtension_EncryptionTimeMsShouldBeZero()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -637,7 +637,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
 
@@ -645,14 +645,14 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.Equal(0, capturedEvent.Transfer.EncryptionTimeMs);
     }
 
     [Fact]
-    public void Execute_EmptyEncryptedExtensions_ShouldNotCallEncrypt()
+    public async Task ExecuteAsync_EmptyEncryptedExtensions_ShouldNotCallEncrypt()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -662,17 +662,17 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string>().AsReadOnly());
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
-    public void Execute_EncryptionFails_ShouldSetEncryptionTimeMsToNegativeErrorCode()
+    public async Task ExecuteAsync_EncryptionFails_ShouldSetEncryptionTimeMsToNegativeErrorCode()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -682,7 +682,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
@@ -698,7 +698,7 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         // IoError = 3, so EncryptionTimeMs = -(3+1) = -4
@@ -709,7 +709,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_EncryptionExtensionComparison_ShouldBeCaseInsensitive()
+    public async Task ExecuteAsync_EncryptionExtensionComparison_ShouldBeCaseInsensitive()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -719,13 +719,13 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
             .Returns(new CryptoResult { Success = true, DurationMs = 50, ErrorCode = CryptoErrorCode.None });
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Once);
     }
@@ -733,7 +733,7 @@ public class BackupExecutorTests
     // --- In-flight business software detection tests ---
 
     [Fact]
-    public void Execute_BusinessSoftwareRunning_ShouldStopAfterCurrentFile()
+    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldStopAfterCurrentFile()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -745,18 +745,18 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         Assert.False(result.Success);
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareRunning_ShouldSetStateToBlocked()
+    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldSetStateToBlocked()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -767,7 +767,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
@@ -775,14 +775,14 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
             .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         var lastSnapshot = capturedEvents.Last().Snapshot;
         Assert.Equal(JobState.Blocked, lastSnapshot.State);
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareRunning_ShouldSetBlockReason()
+    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldSetBlockReason()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -792,7 +792,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
@@ -800,7 +800,7 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
             .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         var lastSnapshot = capturedEvents.Last().Snapshot;
         Assert.NotNull(lastSnapshot.BlockReason);
@@ -808,7 +808,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareRunning_ShouldPublishBusinessSoftwareDetectedEvent()
+    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldPublishBusinessSoftwareDetectedEvent()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -818,18 +818,18 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         _mockEventBus.Verify(bus => bus.Publish(It.Is<BusinessSoftwareDetectedEvent>(
             e => e.JobName == "TestJob" && e.Status == BusinessSoftwareStatus.Running)), Times.Once);
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareUnknown_ShouldBlock_FailClosed()
+    public async Task ExecuteAsync_BusinessSoftwareUnknown_ShouldBlock_FailClosed()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -840,18 +840,18 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Unknown);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         Assert.False(result.Success);
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareError_ShouldBlock_FailClosed()
+    public async Task ExecuteAsync_BusinessSoftwareError_ShouldBlock_FailClosed()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -862,18 +862,18 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Error);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         Assert.False(result.Success);
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareNotRunning_ShouldProcessAllFiles()
+    public async Task ExecuteAsync_BusinessSoftwareNotRunning_ShouldProcessAllFiles()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -884,18 +884,18 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
-    public void Execute_BusinessSoftwareDisabled_ShouldProcessAllFiles()
+    public async Task ExecuteAsync_BusinessSoftwareDisabled_ShouldProcessAllFiles()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -906,20 +906,20 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Disabled);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     // --- P2-B: Encryption exception classification tests ---
 
     [Fact]
-    public void Execute_EncryptionThrowsException_ShouldLogAsEncryptionFailure()
+    public async Task ExecuteAsync_EncryptionThrowsException_ShouldLogAsEncryptionFailure()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -929,13 +929,13 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
             .Throws(new InvalidOperationException("CryptoSoft not found"));
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.False(result.Success);
         Assert.Contains(result.Errors, e => e.Contains("Encryption failed"));
@@ -943,7 +943,7 @@ public class BackupExecutorTests
     }
 
     [Fact]
-    public void Execute_EncryptionThrowsException_ShouldSetEncryptionTimeMsToNegativeUnknown()
+    public async Task ExecuteAsync_EncryptionThrowsException_ShouldSetEncryptionTimeMsToNegativeUnknown()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -953,7 +953,7 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions())
             .Returns(new List<string> { ".pdf" }.AsReadOnly());
         _mockEncryptionService.Setup(s => s.EncryptFile(It.IsAny<string>()))
@@ -963,7 +963,7 @@ public class BackupExecutorTests
         _mockEventBus.Setup(bus => bus.Publish(It.IsAny<TransferCompletedEvent>()))
             .Callback<TransferCompletedEvent>(e => capturedEvent = e);
 
-        _executor.Execute(job, strategy);
+        await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.NotNull(capturedEvent);
         Assert.Equal(-((long)CryptoErrorCode.Unknown + 1), capturedEvent.Transfer.EncryptionTimeMs);
@@ -972,7 +972,7 @@ public class BackupExecutorTests
     // --- P2-C: In-flight detection config guard tests ---
 
     [Fact]
-    public void Execute_DetectionDisabled_ShouldNotCheckDetectorInFlight()
+    public async Task ExecuteAsync_DetectionDisabled_ShouldNotCheckDetectorInFlight()
     {
         var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
         var strategy = new FullBackupStrategy();
@@ -983,14 +983,14 @@ public class BackupExecutorTests
         };
 
         _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>())).Returns(100);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(100);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
 
-        var result = _executor.Execute(job, strategy);
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
 
         Assert.True(result.Success);
-        _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
         _mockDetector.Verify(d => d.GetStatus(), Times.Never);
     }
 

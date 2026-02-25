@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Application.Concurrency;
 using Application.DTOs;
 using Application.Events;
 using Application.Ports;
@@ -176,6 +177,173 @@ public class BackupExecutor
                     job.MarkFullBackupCompleted(DateTime.Now);
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"Backup execution failed: {ex.Message}");
+        }
+
+        stopwatch.Stop();
+
+        if (errors.Count > 0)
+            return BackupResult.Fail(errors, stopwatch.Elapsed);
+
+        return BackupResult.Ok(filesProcessed, bytesTransferred, stopwatch.Elapsed);
+    }
+
+    public async Task<BackupResult> ExecuteAsync(
+        BackupJob job,
+        IBackupStrategy strategy,
+        AsyncManualResetEvent pauseGate,
+        CancellationToken ct = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var errors = new List<string>();
+        int filesProcessed = 0;
+        long bytesTransferred = 0;
+        bool blockedByBusinessSoftware = false;
+
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var sourcePath = Path.GetFullPath(job.SourcePath);
+            var targetPath = Path.GetFullPath(job.TargetPath);
+
+            _fileSystem.EnsureDirectory(targetPath);
+
+            var allFiles = _fileSystem.EnumerateFiles(sourcePath);
+            var filesToCopy = _domainService.SelectFilesForBackup(job, allFiles, strategy);
+
+            _tracker.Initialize(filesToCopy.ToList());
+
+            foreach (var file in filesToCopy)
+            {
+                ct.ThrowIfCancellationRequested();
+                await pauseGate.WaitAsync(ct).ConfigureAwait(false);
+
+                var relativePath = Path.GetRelativePath(sourcePath, file.Path);
+                var targetFilePath = Path.Combine(targetPath, relativePath);
+
+                _tracker.SetCurrentFile(
+                    _pathAdapter.ToUNC(file.Path),
+                    _pathAdapter.ToUNC(targetFilePath));
+
+                try
+                {
+                    var transferStopwatch = Stopwatch.StartNew();
+                    var bytesCopied = await _fileSystem.CopyFileAsync(file.Path, targetFilePath, ct).ConfigureAwait(false);
+                    transferStopwatch.Stop();
+
+                    filesProcessed++;
+                    bytesTransferred += bytesCopied;
+
+                    long encryptionTimeMs = 0;
+                    var encryptedExtensions = _encryptionConfig.GetEncryptedExtensions();
+                    var fileExtension = Path.GetExtension(file.Path);
+                    if (encryptedExtensions.Any(ext =>
+                            ext.Equals(fileExtension, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        try
+                        {
+                            var cryptoResult = _encryptionService.EncryptFile(targetFilePath);
+                            if (cryptoResult.Success)
+                            {
+                                encryptionTimeMs = cryptoResult.DurationMs;
+                            }
+                            else
+                            {
+                                encryptionTimeMs = -((long)cryptoResult.ErrorCode + 1);
+                                errors.Add($"Encryption failed for {file.Path}: {cryptoResult.ErrorMessage}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            encryptionTimeMs = -((long)CryptoErrorCode.Unknown + 1);
+                            errors.Add($"Encryption failed for {file.Path}: {ex.Message}");
+                        }
+                    }
+
+                    _tracker.FileProcessed(file);
+
+                    var transferLog = new TransferLog
+                    {
+                        Timestamp = DateTime.Now,
+                        BackupName = job.Name,
+                        SourcePath = _pathAdapter.ToUNC(file.Path),
+                        DestPath = _pathAdapter.ToUNC(targetFilePath),
+                        FileSize = file.Size,
+                        TransferTimeMs = transferStopwatch.ElapsedMilliseconds,
+                        EncryptionTimeMs = encryptionTimeMs
+                    };
+                    _eventBus.Publish(new TransferCompletedEvent(transferLog));
+
+                    var snapshot = _tracker.BuildSnapshot(job.Name);
+                    _eventBus.Publish(new StateChangedEvent(snapshot));
+
+                    // In-flight business software detection
+                    if (_businessSoftwareConfig.IsDetectionEnabled())
+                    {
+                        var businessStatus = _businessSoftwareDetector.GetStatus();
+                        if (businessStatus.IsBlocking())
+                        {
+                            var blockReason = $"Business software detected ({businessStatus})";
+                            errors.Add(blockReason);
+                            blockedByBusinessSoftware = true;
+
+                            _tracker.SetState(JobState.Blocked);
+                            _tracker.SetBlockReason(blockReason);
+                            _tracker.ClearCurrentFile();
+                            var blockedSnapshot = _tracker.BuildSnapshot(job.Name);
+                            _eventBus.Publish(new StateChangedEvent(blockedSnapshot));
+                            _eventBus.Publish(new BusinessSoftwareDetectedEvent(
+                                job.Name, businessStatus, DateTime.Now));
+                            break;
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to copy {file.Path}: {ex.Message}");
+
+                    var errorLog = new TransferLog
+                    {
+                        Timestamp = DateTime.Now,
+                        BackupName = job.Name,
+                        SourcePath = _pathAdapter.ToUNC(file.Path),
+                        DestPath = _pathAdapter.ToUNC(targetFilePath),
+                        FileSize = file.Size,
+                        TransferTimeMs = -1,
+                        EncryptionTimeMs = 0
+                    };
+                    _eventBus.Publish(new TransferCompletedEvent(errorLog));
+
+                    _tracker.FileProcessed(file);
+                    var snapshot = _tracker.BuildSnapshot(job.Name);
+                    _eventBus.Publish(new StateChangedEvent(snapshot));
+                }
+            }
+
+            if (!blockedByBusinessSoftware)
+            {
+                _tracker.SetState(errors.Count > 0 ? JobState.Error : JobState.End);
+                _tracker.ClearCurrentFile();
+                var endSnapshot = _tracker.BuildSnapshot(job.Name);
+                _eventBus.Publish(new StateChangedEvent(endSnapshot));
+
+                if (strategy is FullBackupStrategy)
+                {
+                    job.MarkFullBackupCompleted(DateTime.Now);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
