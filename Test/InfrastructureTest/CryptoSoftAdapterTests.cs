@@ -456,6 +456,50 @@ public class CryptoSoftAdapterTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// C2 TOCTOU: Simulates the race where _disposed is set to true (by Dispose on another thread)
+    /// AFTER ExecuteAsync's line-118 check but BEFORE EnsureServerRunningAsync acquires the lock.
+    /// With the bug: EnsureServerRunningAsync starts a new server on a disposed adapter.
+    /// With the fix: EnsureServerRunningAsync checks _disposed inside the lock and returns false.
+    /// </summary>
+    [Fact]
+    public async Task EnsureServerRunningAsync_RespectsDisposedInsideLock()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port);
+
+        // Start server normally first
+        var result = _adapter.EncryptFile("/dev/null");
+        Assert.True(result.Success, $"Initial request failed: {result.ErrorMessage}");
+
+        // Kill the server process but DON'T call Dispose() — simulate the race window:
+        // Thread A passed the _disposed check at line 118, is about to enter lock.
+        // Thread B (Dispose) set _disposed=true and killed process.
+        // We simulate this by: StopServer (kills process), then set _disposed=true via reflection.
+        _adapter.StopServer();
+
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        _adapter.GetType().GetField("_disposed", flags)!.SetValue(_adapter, true);
+
+        // Now call EnsureServerRunningAsync via reflection — this simulates Thread A
+        // entering the method AFTER Dispose has set _disposed=true.
+        var method = _adapter.GetType().GetMethod("EnsureServerRunningAsync", flags);
+        var task = (Task<bool>)method!.Invoke(_adapter, null)!;
+        var serverStarted = await task;
+
+        // With the fix: returns false (disposed adapter must not restart server)
+        Assert.False(serverStarted,
+            "EnsureServerRunningAsync started a new server on a disposed adapter (TOCTOU race). " +
+            "Fix: add 'if (_disposed) return false;' inside _serverStartLock in EnsureServerRunningAsync.");
+
+        // Verify no process was started
+        var processField = _adapter.GetType().GetField("_serverProcess", flags);
+        var process = processField!.GetValue(_adapter);
+        Assert.Null(process);
+
+        _adapter = null; // Already "disposed" via reflection
+    }
+
     private static void EnsureDotnetRootIsSet()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_ROOT")))

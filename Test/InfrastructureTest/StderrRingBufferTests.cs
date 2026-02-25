@@ -158,4 +158,16 @@ public class StderrRingBufferTests
         Assert.NotNull(lines);
         Assert.Empty(lines);
     }
+
+    [Fact]
+    public void Constructor_ZeroCapacity_ThrowsArgumentOutOfRange()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new StderrRingBuffer(capacity: 0));
+    }
+
+    [Fact]
+    public void Constructor_NegativeCapacity_ThrowsArgumentOutOfRange()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new StderrRingBuffer(capacity: -1));
+    }
 }
