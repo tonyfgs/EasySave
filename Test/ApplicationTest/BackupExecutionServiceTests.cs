@@ -295,4 +295,13 @@ public class BackupExecutionServiceTests
         Assert.False(results[0].Result.Success);
         Assert.Contains(results[0].Result.Errors, e => e.Contains("Business software"));
     }
+
+    [Fact]
+    public async Task ExecuteJobsAsync_EmptyList_ShouldReturnEmptyResults()
+    {
+        var results = await _service.ExecuteJobsAsync(new List<int>());
+
+        Assert.NotNull(results);
+        Assert.Empty(results);
+    }
 }
