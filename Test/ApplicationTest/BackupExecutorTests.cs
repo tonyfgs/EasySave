@@ -1,3 +1,4 @@
+using Application.Concurrency;
 using Application.Events;
 using Application.Ports;
 using Application.Services;
@@ -991,5 +992,122 @@ public class BackupExecutorTests
         Assert.True(result.Success);
         _mockFileSystem.Verify(fs => fs.CopyFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
         _mockDetector.Verify(d => d.GetStatus(), Times.Never);
+    }
+
+    // --- ExecuteAsync tests (00-09) ---
+
+    private readonly AsyncManualResetEvent _pauseGate = new(initialState: true);
+
+    [Fact]
+    public async Task ExecuteAsync_CancelledToken_ShouldThrowAtFileBoundary()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => _executor.ExecuteAsync(job, strategy, _pauseGate, cts.Token));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldPassCancellationTokenToCopyFileAsync()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
+        using var cts = new CancellationTokenSource();
+        await _executor.ExecuteAsync(job, strategy, _pauseGate, cts.Token);
+
+        _mockFileSystem.Verify(fs => fs.CopyFileAsync(
+            It.IsAny<string>(), It.IsAny<string>(), cts.Token), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PauseGateBlocked_ShouldNotCopyUntilSet()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
+        var blockedGate = new AsyncManualResetEvent(initialState: false);
+        var executeTask = _executor.ExecuteAsync(job, strategy, blockedGate);
+
+        await Task.Delay(200);
+        _mockFileSystem.Verify(
+            fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        blockedGate.Set();
+        var result = await executeTask;
+
+        Assert.True(result.Success);
+        _mockFileSystem.Verify(
+            fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CopyFileAsyncThrowsOCE_ShouldPropagate()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => _executor.ExecuteAsync(job, strategy, _pauseGate));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithDefaultGate_ShouldCopyAllFiles()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(100);
+
+        var result = await _executor.ExecuteAsync(job, strategy, _pauseGate);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, result.FilesProcessed);
     }
 }
