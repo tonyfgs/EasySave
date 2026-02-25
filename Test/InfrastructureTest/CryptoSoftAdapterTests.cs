@@ -516,9 +516,11 @@ public class CryptoSoftAdapterTests : IDisposable
     private static string ResolveFakeServerPath()
     {
         var testDir = AppDomain.CurrentDomain.BaseDirectory;
-        // Navigate: bin/Debug/net8.0 -> InfrastructureTest -> Test -> solution root
+        // Navigate: bin/{Config}/net8.0 -> InfrastructureTest -> Test -> solution root
         var solutionDir = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", ".."));
-        var path = Path.Combine(solutionDir, "Test", "FakeCryptoServer", "bin", "Debug", "net8.0", "FakeCryptoServer");
+        // Detect build configuration from test output directory (e.g. bin/Debug/net8.0 or bin/Release/net8.0)
+        var configuration = new DirectoryInfo(testDir).Parent!.Name;
+        var path = Path.Combine(solutionDir, "Test", "FakeCryptoServer", "bin", configuration, "net8.0", "FakeCryptoServer");
         if (OperatingSystem.IsWindows())
             path += ".exe";
         return path;

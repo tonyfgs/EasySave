@@ -267,7 +267,8 @@ public class CryptoSoftAdapterStressTests : IClassFixture<CorpusFixture>, IDispo
     {
         var testDir = AppDomain.CurrentDomain.BaseDirectory;
         var solutionDir = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", ".."));
-        var path = Path.Combine(solutionDir, "Test", "FakeCryptoServer", "bin", "Debug", "net8.0", "FakeCryptoServer");
+        var configuration = new DirectoryInfo(testDir).Parent!.Name;
+        var path = Path.Combine(solutionDir, "Test", "FakeCryptoServer", "bin", configuration, "net8.0", "FakeCryptoServer");
         if (OperatingSystem.IsWindows())
             path += ".exe";
         return path;
