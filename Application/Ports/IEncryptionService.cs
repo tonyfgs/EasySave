@@ -22,6 +22,7 @@ public enum CryptoErrorCode
     IoError,
     AuthTagInvalid,
     InvalidKey,
+    AlreadyRunning,
     Timeout,
     Unknown
 }

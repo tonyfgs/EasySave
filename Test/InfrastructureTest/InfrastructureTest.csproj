@@ -21,5 +21,8 @@
     <ProjectReference Include="..\..\Model\Model.csproj" />
     <ProjectReference Include="..\..\Shared\Shared.csproj" />
     <ProjectReference Include="..\..\Logger\Logger.csproj" />
+    <ProjectReference Include="..\FakeCryptoServer\FakeCryptoServer.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
 </Project>

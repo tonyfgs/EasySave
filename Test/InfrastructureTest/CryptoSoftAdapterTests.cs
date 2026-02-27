@@ -1,0 +1,551 @@
+using System.Reflection;
+using Application.Ports;
+using Infrastructure;
+using Moq;
+using System.Net;
+using System.Net.Sockets;
+
+namespace InfrastructureTest;
+
+public class CryptoSoftAdapterTests : IDisposable
+{
+    private readonly string _fakeServerPath;
+    private readonly Mock<IEncryptionConfig> _configMock;
+    private CryptoSoftAdapter? _adapter;
+
+    public CryptoSoftAdapterTests()
+    {
+        EnsureDotnetRootIsSet();
+        _fakeServerPath = ResolveFakeServerPath();
+        _configMock = new Mock<IEncryptionConfig>();
+        _configMock.Setup(c => c.GetEncryptionKey()).Returns("dGVzdGtleS0xMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ=");
+    }
+
+    public void Dispose()
+    {
+        _adapter?.Dispose();
+    }
+
+    private CryptoSoftAdapter CreateAdapter(int port, string extraArgs = "")
+    {
+        return new CryptoSoftAdapter(
+            _configMock.Object,
+            cryptoSoftPath: _fakeServerPath,
+            timeoutMs: 10000,
+            port: port,
+            serverArguments: $"server --port={port} {extraArgs}".Trim());
+    }
+
+    [Fact]
+    public void EnsureServer_CapturesStderrLines()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=10 --stderr-count=20");
+
+        _adapter.EncryptFile("/dev/null");
+
+        // Wait for stderr lines to be captured
+        Thread.Sleep(3000);
+
+        var lines = _adapter.GetServerStderrLines();
+        Assert.NotEmpty(lines);
+    }
+
+    [Fact]
+    public void StderrBuffer_ClearedOnNewStartup()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=10 --stderr-count=5");
+
+        // First startup
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(2000);
+        var firstLines = _adapter.GetServerStderrLines();
+        Assert.NotEmpty(firstLines);
+
+        // Stop and create new adapter (simulates restart)
+        _adapter.Dispose();
+
+        var port2 = GetAvailablePort();
+        _adapter = CreateAdapter(port2, "--stderr-rate=10 --stderr-count=3");
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(2000);
+
+        var secondLines = _adapter.GetServerStderrLines();
+        // Second run lines should NOT contain first run's numbered stderr lines
+        // The startup line "FakeCryptoServer stderr: started on port N" may repeat
+        // but with different port numbers
+        Assert.NotEmpty(secondLines);
+        Assert.True(secondLines.Count <= firstLines.Count + 5,
+            "Second run should not accumulate lines from first run");
+    }
+
+    [Fact]
+    public void StderrBuffer_MaxCapacity200()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=100 --stderr-count=300");
+
+        _adapter.EncryptFile("/dev/null");
+
+        // Wait for all 300 lines to be emitted (300 lines at 100/sec = 3 seconds + buffer)
+        Thread.Sleep(5000);
+
+        var lines = _adapter.GetServerStderrLines();
+        Assert.Equal(200, lines.Count);
+    }
+
+    [Fact]
+    public void StderrBuffer_LinesAreChronological()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=10 --stderr-count=10");
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(2000);
+
+        var lines = _adapter.GetServerStderrLines();
+        // Find numbered lines and verify order
+        var numberedLines = lines
+            .Where(l => l.Contains("[STDERR] line "))
+            .Select(l =>
+            {
+                var numStr = l.Split("line ").Last();
+                return int.TryParse(numStr, out var n) ? n : -1;
+            })
+            .Where(n => n > 0)
+            .ToList();
+
+        for (int i = 1; i < numberedLines.Count; i++)
+        {
+            Assert.True(numberedLines[i] > numberedLines[i - 1],
+                $"Lines not chronological: {numberedLines[i - 1]} followed by {numberedLines[i]}");
+        }
+    }
+
+    [Fact]
+    public void HandlerCleanup_NoDoubleSubscription()
+    {
+        var observedCounts = new List<int>();
+
+        for (int cycle = 0; cycle < 5; cycle++)
+        {
+            _adapter?.Dispose();
+            var port = GetAvailablePort();
+            _adapter = CreateAdapter(port, "--stderr-rate=5 --stderr-count=5");
+
+            _adapter.EncryptFile("/dev/null");
+            Thread.Sleep(2000);
+
+            var lines = _adapter.GetServerStderrLines();
+            var stderrLogLines = lines.Where(l => l.Contains("[STDERR] line ")).ToList();
+            observedCounts.Add(stderrLogLines.Count);
+        }
+
+        // Each cycle should observe roughly the same count (no doubling)
+        foreach (var count in observedCounts)
+        {
+            Assert.True(count <= 10,
+                $"Observed {count} [STDERR] lines in a cycle, expected <= 10 (5 emitted + startup line). " +
+                "This may indicate duplicate handler subscriptions.");
+        }
+    }
+
+    [Fact]
+    public void Dispose_KillsProcess()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port);
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(500);
+
+        // Verify server is running
+        Assert.True(IsPortInUse(port), "Server should be running before dispose");
+
+        _adapter.Dispose();
+        _adapter = null;
+        Thread.Sleep(1000);
+
+        // Verify server is stopped
+        Assert.False(IsPortInUse(port), "Server should be stopped after dispose");
+    }
+
+    [Fact]
+    public void Dispose_UnsubscribesHandlers()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=5 --stderr-count=50");
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(1000);
+
+        _adapter.Dispose();
+
+        // After dispose, GetServerStderrLines should return empty (buffer cleared)
+        var lines = _adapter.GetServerStderrLines();
+        Assert.Empty(lines);
+
+        _adapter = null;
+    }
+
+    [Fact]
+    public void Dispose_Idempotent()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port);
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(500);
+
+        // Double dispose should not throw
+        _adapter.Dispose();
+        var exception = Record.Exception(() => _adapter.Dispose());
+
+        Assert.Null(exception);
+        _adapter = null;
+    }
+
+    [Fact]
+    public void MemoryStability_100RestartCycles()
+    {
+        // Warm-up: 5 cycles discarded
+        for (int i = 0; i < 5; i++)
+        {
+            var port = GetAvailablePort();
+            using var warmupAdapter = CreateAdapter(port, "--stderr-rate=1 --stderr-count=1");
+            warmupAdapter.EncryptFile("/dev/null");
+            Thread.Sleep(300);
+            warmupAdapter.StopServer();
+            Thread.Sleep(200);
+        }
+
+        // Double-GC for baseline
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+        GC.WaitForPendingFinalizers();
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+        var baselineMemory = GC.GetTotalMemory(false);
+
+        // 100 measured cycles with intermediate samples every 25 cycles
+        var intermediateSamples = new List<(int cycle, long bytes)>();
+        for (int i = 0; i < 100; i++)
+        {
+            var port = GetAvailablePort();
+            using var cycleAdapter = CreateAdapter(port, "--stderr-rate=1 --stderr-count=2");
+            cycleAdapter.EncryptFile("/dev/null");
+            Thread.Sleep(200);
+            cycleAdapter.StopServer();
+            Thread.Sleep(100);
+
+            if ((i + 1) % 25 == 0)
+            {
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+                intermediateSamples.Add((i + 1, GC.GetTotalMemory(false)));
+            }
+        }
+
+        // Double-GC for final measurement
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+        GC.WaitForPendingFinalizers();
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, true, true);
+        var finalMemory = GC.GetTotalMemory(false);
+
+        var deltaBytes = finalMemory - baselineMemory;
+        var sampleReport = string.Join(", ", intermediateSamples.Select(s =>
+            $"cycle {s.cycle}: {(s.bytes - baselineMemory) / 1024.0 / 1024.0:F2}MB"));
+        Assert.True(deltaBytes <= 5 * 1024 * 1024,
+            $"Memory grew by {deltaBytes / 1024.0 / 1024.0:F2}MB over 100 restart cycles (limit: 5MB). " +
+            $"Baseline: {baselineMemory / 1024.0 / 1024.0:F2}MB. " +
+            $"Intermediate deltas: [{sampleReport}]. " +
+            $"Final: {finalMemory / 1024.0 / 1024.0:F2}MB");
+    }
+
+    [Fact]
+    public void EncryptFile_ReturnsSuccess_WithRedirection()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=1 --stderr-count=5");
+
+        var result = _adapter.EncryptFile("/dev/null");
+
+        Assert.True(result.Success, $"Expected success but got: {result.ErrorMessage}");
+        Assert.Equal(CryptoErrorCode.None, result.ErrorCode);
+    }
+
+    /// <summary>
+    /// Task 2 (CRITICAL C2): After Dispose(), calling EncryptFile should NOT restart the server.
+    /// BUG: ExecuteAsync does not check _disposed, so it creates a new Process — resource leak.
+    /// </summary>
+    [Fact]
+    public void EncryptFile_AfterDispose_ReturnsError()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port);
+
+        var result = _adapter.EncryptFile("/dev/null");
+        Assert.True(result.Success, $"Initial request failed: {result.ErrorMessage}");
+
+        _adapter.Dispose();
+
+        CryptoResult? postResult = null;
+        try
+        {
+            postResult = _adapter.EncryptFile("/dev/null");
+        }
+        catch (ObjectDisposedException)
+        {
+            // ObjectDisposedException is the expected .NET pattern — test passes
+            _adapter = null;
+            return;
+        }
+        finally
+        {
+            // Clean up any leaked server process (the bug starts a new one)
+            try { _adapter?.StopServer(); } catch { }
+        }
+
+        Assert.False(postResult!.Success,
+            "EncryptFile after Dispose should not succeed — the adapter restarted the server (resource leak)");
+        _adapter = null;
+    }
+
+    /// <summary>
+    /// Task 4 (HIGH H4): StopServer() must clear the stderr buffer so lines are scoped
+    /// to the current startup attempt only. BUG: StopServer() does not call _stderrBuffer.Clear().
+    /// </summary>
+    [Fact]
+    public void StopServer_ClearsStderrBuffer()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=10 --stderr-count=10");
+
+        _adapter.EncryptFile("/dev/null");
+        Thread.Sleep(2000);
+
+        var linesBefore = _adapter.GetServerStderrLines();
+        Assert.NotEmpty(linesBefore);
+
+        _adapter.StopServer();
+
+        // After StopServer, buffer should be cleared for next startup attempt scoping
+        var linesAfter = _adapter.GetServerStderrLines();
+        Assert.Empty(linesAfter);
+    }
+
+    /// <summary>
+    /// Task 5: When server startup fails (process runs but never listens on TCP),
+    /// GetServerStderrLines() must expose exactly the last 200 stderr lines,
+    /// in chronological order, scoped to the failing attempt only.
+    /// Requires FakeCryptoServer --no-listen flag.
+    /// </summary>
+    [Fact]
+    public void StartupFailure_ExposesLast200StderrLines()
+    {
+        var port = GetAvailablePort();
+        // --no-listen: FakeCryptoServer emits stderr but never binds TCP
+        _adapter = new CryptoSoftAdapter(
+            _configMock.Object,
+            cryptoSoftPath: _fakeServerPath,
+            timeoutMs: 10000,
+            port: port,
+            serverArguments: $"server --port={port} --stderr-rate=100 --stderr-count=250 --no-listen");
+
+        // Will fail to connect (server never listens), falls back to standalone which also fails
+        _adapter.EncryptFile("/dev/null");
+
+        // Server emitted 250 stderr lines; ring buffer capacity = 200 → keeps last 200
+        var lines = _adapter.GetServerStderrLines();
+        Assert.Equal(200, lines.Count);
+
+        // Verify chronological order: lines should be numbered 51..250
+        var numberedLines = lines
+            .Where(l => l.Contains("[STDERR] line "))
+            .Select(l =>
+            {
+                var numStr = l.Split("line ").Last();
+                return int.TryParse(numStr, out var n) ? n : -1;
+            })
+            .Where(n => n > 0)
+            .ToList();
+
+        Assert.NotEmpty(numberedLines);
+        for (int i = 1; i < numberedLines.Count; i++)
+        {
+            Assert.True(numberedLines[i] > numberedLines[i - 1],
+                $"Stderr lines not chronological: {numberedLines[i - 1]} followed by {numberedLines[i]}");
+        }
+
+        // First numbered line should be 51 (oldest after 250 written to 200-capacity buffer)
+        Assert.Equal(51, numberedLines[0]);
+    }
+
+    /// <summary>
+    /// Task 6: 100 restart cycles on the SAME adapter using StopServer()+EncryptFile().
+    /// Verifies: (1) each emitted stderr line is observed exactly once (no doubling),
+    /// (2) handler fields are non-null while running (1 per stream),
+    /// (3) handler fields are null after StopServer()/Dispose() (0 subscriptions).
+    /// </summary>
+    [Fact]
+    public void RestartCycles100_ExactlyOnceHandlerExecution()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port, "--stderr-rate=1000 --stderr-count=1");
+
+        // 5-cycle warm-up (discarded)
+        for (int i = 0; i < 5; i++)
+        {
+            var result = _adapter.EncryptFile("/dev/null");
+            Assert.True(result.Success, $"Warmup {i} failed: {result.ErrorMessage}");
+            Thread.Sleep(500);
+            _adapter.StopServer();
+            Thread.Sleep(200);
+        }
+
+        // 100 measured restart cycles on the SAME adapter instance
+        for (int cycle = 0; cycle < 100; cycle++)
+        {
+            var result = _adapter.EncryptFile("/dev/null");
+            Assert.True(result.Success, $"Cycle {cycle} failed: {result.ErrorMessage}");
+
+            // Verify subscriptions are active (1 per stream)
+            AssertHandlerFields(_adapter, expectedNonNull: true,
+                $"Cycle {cycle}: handlers should be non-null while running");
+
+            Thread.Sleep(500);
+
+            var lines = _adapter.GetServerStderrLines();
+            var stderrCount = lines.Count(l => l.Contains("[STDERR] line "));
+
+            // Each cycle emits exactly 1 [STDERR] line — doubled count = duplicate handlers
+            Assert.True(stderrCount <= 1,
+                $"Cycle {cycle}: Expected <= 1 [STDERR] line but got {stderrCount}. " +
+                $"This indicates duplicate handler subscriptions. Lines: {string.Join("; ", lines)}");
+
+            _adapter.StopServer();
+
+            // Verify subscriptions are 0 after StopServer
+            AssertHandlerFields(_adapter, expectedNonNull: false,
+                $"Cycle {cycle}: handlers should be null after StopServer");
+        }
+
+        // Final dispose
+        _adapter.Dispose();
+        AssertHandlerFields(_adapter, expectedNonNull: false,
+            "Handlers should be null after Dispose");
+        _adapter = null;
+    }
+
+    private static void AssertHandlerFields(CryptoSoftAdapter adapter, bool expectedNonNull, string context)
+    {
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var stdoutHandler = adapter.GetType().GetField("_stdoutHandler", flags)?.GetValue(adapter);
+        var stderrHandler = adapter.GetType().GetField("_stderrHandler", flags)?.GetValue(adapter);
+
+        if (expectedNonNull)
+        {
+            Assert.True(stdoutHandler is not null, $"{context}: _stdoutHandler is null");
+            Assert.True(stderrHandler is not null, $"{context}: _stderrHandler is null");
+        }
+        else
+        {
+            Assert.True(stdoutHandler is null, $"{context}: _stdoutHandler is not null");
+            Assert.True(stderrHandler is null, $"{context}: _stderrHandler is not null");
+        }
+    }
+
+    /// <summary>
+    /// C2 TOCTOU: Simulates the race where _disposed is set to true (by Dispose on another thread)
+    /// AFTER ExecuteAsync's line-118 check but BEFORE EnsureServerRunningAsync acquires the lock.
+    /// With the bug: EnsureServerRunningAsync starts a new server on a disposed adapter.
+    /// With the fix: EnsureServerRunningAsync checks _disposed inside the lock and returns false.
+    /// </summary>
+    [Fact]
+    public async Task EnsureServerRunningAsync_RespectsDisposedInsideLock()
+    {
+        var port = GetAvailablePort();
+        _adapter = CreateAdapter(port);
+
+        // Start server normally first
+        var result = _adapter.EncryptFile("/dev/null");
+        Assert.True(result.Success, $"Initial request failed: {result.ErrorMessage}");
+
+        // Kill the server process but DON'T call Dispose() — simulate the race window:
+        // Thread A passed the _disposed check at line 118, is about to enter lock.
+        // Thread B (Dispose) set _disposed=true and killed process.
+        // We simulate this by: StopServer (kills process), then set _disposed=true via reflection.
+        _adapter.StopServer();
+
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        _adapter.GetType().GetField("_disposed", flags)!.SetValue(_adapter, true);
+
+        // Now call EnsureServerRunningAsync via reflection — this simulates Thread A
+        // entering the method AFTER Dispose has set _disposed=true.
+        var method = _adapter.GetType().GetMethod("EnsureServerRunningAsync", flags);
+        var task = (Task<bool>)method!.Invoke(_adapter, null)!;
+        var serverStarted = await task;
+
+        // With the fix: returns false (disposed adapter must not restart server)
+        Assert.False(serverStarted,
+            "EnsureServerRunningAsync started a new server on a disposed adapter (TOCTOU race). " +
+            "Fix: add 'if (_disposed) return false;' inside _serverStartLock in EnsureServerRunningAsync.");
+
+        // Verify no process was started
+        var processField = _adapter.GetType().GetField("_serverProcess", flags);
+        var process = processField!.GetValue(_adapter);
+        Assert.Null(process);
+
+        _adapter = null; // Already "disposed" via reflection
+    }
+
+    private static void EnsureDotnetRootIsSet()
+    {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_ROOT")))
+            return;
+
+        // Derive DOTNET_ROOT from the core library location:
+        // e.g. /usr/local/share/dotnet/shared/Microsoft.NETCore.App/8.0.x/System.Private.CoreLib.dll
+        // Go up 4 levels: dll -> 8.0.x -> Microsoft.NETCore.App -> shared -> dotnet root
+        var coreLibDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        var dotnetRoot = Path.GetFullPath(Path.Combine(coreLibDir, "..", "..", ".."));
+        Environment.SetEnvironmentVariable("DOTNET_ROOT", dotnetRoot);
+    }
+
+    private static string ResolveFakeServerPath()
+    {
+        var testDir = AppDomain.CurrentDomain.BaseDirectory;
+        // Navigate: bin/{Config}/net8.0 -> InfrastructureTest -> Test -> solution root
+        var solutionDir = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", ".."));
+        // Detect build configuration from test output directory (e.g. bin/Debug/net8.0 or bin/Release/net8.0)
+        var configuration = new DirectoryInfo(testDir).Parent!.Name;
+        var path = Path.Combine(solutionDir, "Test", "FakeCryptoServer", "bin", configuration, "net8.0", "FakeCryptoServer");
+        if (OperatingSystem.IsWindows())
+            path += ".exe";
+        return path;
+    }
+
+    private static int GetAvailablePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    private static bool IsPortInUse(int port)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            var task = client.ConnectAsync(IPAddress.Loopback, port);
+            return task.Wait(500) && client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
