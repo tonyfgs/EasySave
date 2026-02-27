@@ -1134,4 +1134,342 @@ public class BackupExecutorTests
         Assert.Equal("b.docx", copiedFiles[1]);
         Assert.Equal("c.pdf", copiedFiles[2]);
     }
+
+    // --- Pause / Stop tests ---
+
+    [Fact]
+    public async Task PauseRequestedEvent_ClosesGate_StateBecomePaused()
+    {
+        var job = new BackupJob(1, "PauseJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now),
+            new(Path.Combine(SourcePath, "file3.txt"), 300, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var publishedStates = new List<JobState>();
+        _mockEventBus.Setup(eb => eb.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => publishedStates.Add(e.Snapshot.State));
+
+        int copyCount = 0;
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, dst, ct) =>
+            {
+                var count = Interlocked.Increment(ref copyCount);
+                if (count == 1)
+                {
+                    // After first file copy, pause the job
+                    _executor.Handle(new PauseRequestedEvent(job.Id));
+
+                    // Schedule resume after a brief delay so the executor can observe the paused state
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(100);
+                        _executor.Handle(new PauseRequestedEvent(job.Id)); // toggle = resume
+                    });
+                }
+                return Task.FromResult(100L);
+            });
+
+        var result = await _executor.ExecuteAsync(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.FilesProcessed);
+        Assert.Contains(JobState.Paused, publishedStates);
+    }
+
+    [Fact]
+    public async Task PauseRequestedEvent_Toggle_ResumeAfterPause()
+    {
+        var job = new BackupJob(1, "ToggleJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var publishedStates = new List<JobState>();
+        _mockEventBus.Setup(eb => eb.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => publishedStates.Add(e.Snapshot.State));
+
+        int copyCount = 0;
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, dst, ct) =>
+            {
+                var count = Interlocked.Increment(ref copyCount);
+                if (count == 1)
+                {
+                    // Pause after first file
+                    _executor.Handle(new PauseRequestedEvent(job.Id));
+
+                    // Resume after brief delay
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(50);
+                        _executor.Handle(new PauseRequestedEvent(job.Id)); // toggle = resume
+                    });
+                }
+                return Task.FromResult(100L);
+            });
+
+        var result = await _executor.ExecuteAsync(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(2, result.FilesProcessed);
+        // Should have had a Paused state followed by Active state (resume)
+        Assert.Contains(JobState.Paused, publishedStates);
+        Assert.Contains(JobState.Active, publishedStates);
+    }
+
+    [Fact]
+    public async Task StopRequestedEvent_BreaksLoop_NotAllFilesCopied()
+    {
+        var job = new BackupJob(1, "StopJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now),
+            new(Path.Combine(SourcePath, "file3.txt"), 300, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var publishedStates = new List<JobState>();
+        _mockEventBus.Setup(eb => eb.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => publishedStates.Add(e.Snapshot.State));
+
+        int copyCount = 0;
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, dst, ct) =>
+            {
+                var count = Interlocked.Increment(ref copyCount);
+                if (count == 1)
+                {
+                    // After first file copy, stop the job
+                    _executor.Handle(new StopRequestedEvent(job.Id));
+                }
+                return Task.FromResult(100L);
+            });
+
+        var result = await _executor.ExecuteAsync(job, strategy);
+
+        // Only 1 file should have been processed (stop kicks in before 2nd file)
+        Assert.True(result.Success);
+        Assert.Equal(1, result.FilesProcessed);
+        _mockFileSystem.Verify(
+            fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.Contains(JobState.Stopping, publishedStates);
+    }
+
+    [Fact]
+    public async Task StopRequestedEvent_UnblocksPausedJob()
+    {
+        var job = new BackupJob(1, "PauseStopJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        int copyCount = 0;
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, dst, ct) =>
+            {
+                var count = Interlocked.Increment(ref copyCount);
+                if (count == 1)
+                {
+                    // Pause after first file
+                    _executor.Handle(new PauseRequestedEvent(job.Id));
+
+                    // Then stop shortly after — this should unblock the pause gate
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(50);
+                        _executor.Handle(new StopRequestedEvent(job.Id));
+                    });
+                }
+                return Task.FromResult(100L);
+            });
+
+        // The test verifies the job does not hang (deadlock). Use a timeout.
+        // StopRequestedEvent cancels the CTS first, then opens the pause gate.
+        // When WaitAsync sees the cancelled token it throws OperationCanceledException
+        // which propagates through ExecuteAsync. This is the expected stop-while-paused path.
+        var executeTask = _executor.ExecuteAsync(job, strategy);
+        var completedTask = await Task.WhenAny(executeTask, Task.Delay(5000));
+
+        Assert.Equal(executeTask, completedTask); // should complete, not timeout
+
+        // The task may throw OCE (stop cancels CTS while waiting on pause gate)
+        // or return normally (if PauseGate.Set() wins the race). Either way, it must not hang.
+        try
+        {
+            var result = await executeTask;
+            // If it completed normally, only 1 file was copied before stop
+            Assert.Equal(1, result.FilesProcessed);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: stop cancels CTS before the pause gate opens, causing OCE
+            // The key assertion is that we reached this point (no deadlock)
+        }
+    }
+
+    [Fact]
+    public async Task StopRequestedEvent_CancelsInProgressCopy()
+    {
+        var job = new BackupJob(1, "CancelCopyJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "largefile.bin"), 999999, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var copyStarted = new TaskCompletionSource<bool>();
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>(async (src, dst, ct) =>
+            {
+                copyStarted.SetResult(true);
+                // Simulate a long-running copy that respects cancellation
+                await Task.Delay(Timeout.Infinite, ct);
+                return 0L; // unreachable
+            });
+
+        var executeTask = _executor.ExecuteAsync(job, strategy);
+
+        // Wait for the copy to start
+        await copyStarted.Task;
+
+        // Trigger stop from another thread
+        _ = Task.Run(() => _executor.Handle(new StopRequestedEvent(job.Id)));
+
+        // Execution should complete (not hang) within a reasonable timeout
+        var completedTask = await Task.WhenAny(executeTask, Task.Delay(5000));
+        Assert.Equal(executeTask, completedTask);
+
+        var result = await executeTask;
+        // The copy was cancelled mid-flight so 0 files were successfully processed
+        Assert.Equal(0, result.FilesProcessed);
+    }
+
+    [Fact]
+    public async Task StateTransitions_Active_Paused_Active_End()
+    {
+        var job = new BackupJob(1, "TransitionJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now),
+            new(Path.Combine(SourcePath, "file3.txt"), 300, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var publishedStates = new List<JobState>();
+        _mockEventBus.Setup(eb => eb.Publish(It.IsAny<StateChangedEvent>()))
+            .Callback<StateChangedEvent>(e => publishedStates.Add(e.Snapshot.State));
+
+        int copyCount = 0;
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, dst, ct) =>
+            {
+                var count = Interlocked.Increment(ref copyCount);
+                if (count == 1)
+                {
+                    // After first file, pause the job
+                    _executor.Handle(new PauseRequestedEvent(job.Id));
+
+                    // Resume after brief delay
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(50);
+                        _executor.Handle(new PauseRequestedEvent(job.Id)); // toggle = resume
+                    });
+                }
+                return Task.FromResult(100L);
+            });
+
+        var result = await _executor.ExecuteAsync(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.FilesProcessed);
+
+        // Verify state transition sequence: should contain Active -> Paused -> Active -> ... -> End
+        Assert.Contains(JobState.Active, publishedStates);
+        Assert.Contains(JobState.Paused, publishedStates);
+
+        // Find the pause/resume sequence: Paused must appear before a subsequent Active
+        int pausedIndex = publishedStates.IndexOf(JobState.Paused);
+        int resumeActiveIndex = publishedStates.FindIndex(pausedIndex + 1, s => s == JobState.Active);
+        Assert.True(resumeActiveIndex > pausedIndex, "Active state should follow Paused state after resume");
+
+        // Final state should be End
+        Assert.Equal(JobState.End, publishedStates.Last());
+    }
+
+    [Fact]
+    public async Task StopDuringLargeFileWait_DoesNotDeadlock()
+    {
+        var job = new BackupJob(1, "LargeFileStopJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        // File size is 2000 bytes, threshold is 1 KB = 1024 bytes, so file > threshold
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "big.bin"), 2000, DateTime.Now)
+        };
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+        _mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(1); // 1 KB threshold
+
+        var acquireStarted = new TaskCompletionSource<bool>();
+        // AcquireAsync never completes on its own — simulating a blocked lock
+        _mockLargeFileLock.Setup(l => l.AcquireAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async ct =>
+            {
+                acquireStarted.SetResult(true);
+                // Wait indefinitely until cancelled
+                await Task.Delay(Timeout.Infinite, ct);
+            });
+
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2000L);
+
+        var executeTask = _executor.ExecuteAsync(job, strategy);
+
+        // Wait for the lock acquisition to start
+        await acquireStarted.Task;
+
+        // Trigger stop from another thread
+        _ = Task.Run(() => _executor.Handle(new StopRequestedEvent(job.Id)));
+
+        // Should complete within 5 seconds (not deadlock)
+        var completedTask = await Task.WhenAny(executeTask, Task.Delay(5000));
+        Assert.Equal(executeTask, completedTask);
+
+        // The stop cancels the CTS, causing AcquireAsync to throw OCE.
+        // This is the expected behavior — the key assertion is no deadlock.
+        try
+        {
+            await executeTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: stop cancels CTS while waiting on large file lock
+        }
+    }
 }
