@@ -165,6 +165,51 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- Log Centralization Section -->
+            <Border StrokeShape="RoundRectangle 12"
+                    Stroke="{AppThemeBinding Light=#E0E0E0, Dark=#333333}"
+                    Padding="20"
+                    BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="{Binding Localization.LogCentralizerTitle}"
+                           FontSize="18" FontAttributes="Bold" TextColor="#1976D2"/>
+
+                    <Label Text="{Binding Localization.LogModeLabel}" FontSize="14"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#BBBBBB}"/>
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Button Text="{Binding Localization.LogModeLocalOnly}"
+                                Command="{Binding SelectLocalOnlyCommand}"
+                                BackgroundColor="{Binding LocalOnlyButtonColor}"
+                                TextColor="White" WidthRequest="130" HeightRequest="48"
+                                CornerRadius="8"/>
+                        <Button Text="{Binding Localization.LogModeCentralized}"
+                                Command="{Binding SelectCentralizedOnlyCommand}"
+                                BackgroundColor="{Binding CentralizedOnlyButtonColor}"
+                                TextColor="White" WidthRequest="130" HeightRequest="48"
+                                CornerRadius="8"/>
+                        <Button Text="{Binding Localization.LogModeBoth}"
+                                Command="{Binding SelectLocalAndCentralizedCommand}"
+                                BackgroundColor="{Binding LocalAndCentralizedButtonColor}"
+                                TextColor="White" WidthRequest="130" HeightRequest="48"
+                                CornerRadius="8"/>
+                    </HorizontalStackLayout>
+
+                    <Label Text="{Binding Localization.CentralizedServerUrlLabel}" FontSize="14"
+                           Margin="0,5,0,0"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#BBBBBB}"/>
+
+                    <Entry Text="{Binding CentralizedServerUrl}"
+                           Placeholder="http://localhost:5050"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                           BackgroundColor="{AppThemeBinding Light=#FAFAFA, Dark=#2C2C2C}"/>
+
+                    <Label Text="{Binding Localization.LogCentralizerHelp}" FontSize="12"
+                           TextColor="{AppThemeBinding Light=#888888, Dark=#999999}"
+                           LineBreakMode="WordWrap"/>
+                </VerticalStackLayout>
+            </Border>
+
             <Button Text="{Binding Localization.SaveButton}"
                     Command="{Binding SaveSettingsCommand}"
                     BackgroundColor="#2E7D32"

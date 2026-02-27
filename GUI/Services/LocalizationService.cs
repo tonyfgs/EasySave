@@ -91,6 +91,13 @@ public class LocalizationService : INotifyPropertyChanged
     public string LargeFileSizeTitle => GetString("settings.large_file_title");
     public string LargeFileSizeLabel => GetString("settings.large_file_label");
     public string LargeFileSizeHelp => GetString("settings.large_file_help");
+    public string LogCentralizerTitle => GetString("settings.log_centralizer_title");
+    public string LogModeLabel => GetString("settings.log_mode_label");
+    public string LogModeLocalOnly => GetString("settings.log_mode_local_only");
+    public string LogModeCentralized => GetString("settings.log_mode_centralized");
+    public string LogModeBoth => GetString("settings.log_mode_both");
+    public string CentralizedServerUrlLabel => GetString("settings.centralized_server_url_label");
+    public string LogCentralizerHelp => GetString("settings.log_centralizer_help");
     public string SaveButton => GetString("settings.save_button");
     public string SettingsInfo => GetString("settings.info");
 
@@ -196,6 +203,13 @@ public class LocalizationService : INotifyPropertyChanged
             ["settings.priority_extensions_label"] = new() { [Language.EN] = "Priority File Extensions", [Language.FR] = "Extensions de Fichiers Prioritaires" },
             ["settings.priority_extensions_help"] = new() { [Language.EN] = "Files with these extensions are transferred first across all jobs. Non-priority files wait until all priority files are done.", [Language.FR] = "Les fichiers avec ces extensions sont transférés en premier sur tous les travaux. Les fichiers non-prioritaires attendent la fin de tous les fichiers prioritaires." },
             ["settings.priority_extensions_search_placeholder"] = new() { [Language.EN] = "Search or add priority extension...", [Language.FR] = "Rechercher ou ajouter une extension prioritaire..." },
+            ["settings.log_centralizer_title"] = new() { [Language.EN] = "Log Centralization", [Language.FR] = "Centralisation des Logs" },
+            ["settings.log_mode_label"] = new() { [Language.EN] = "Log Mode", [Language.FR] = "Mode de Log" },
+            ["settings.log_mode_local_only"] = new() { [Language.EN] = "Local", [Language.FR] = "Local" },
+            ["settings.log_mode_centralized"] = new() { [Language.EN] = "Centralized", [Language.FR] = "Centralisé" },
+            ["settings.log_mode_both"] = new() { [Language.EN] = "Both", [Language.FR] = "Les Deux" },
+            ["settings.centralized_server_url_label"] = new() { [Language.EN] = "Centralized Server URL", [Language.FR] = "URL du Serveur Centralisé" },
+            ["settings.log_centralizer_help"] = new() { [Language.EN] = "Choose where logs are stored. Centralized mode sends logs to a Docker container for aggregation.", [Language.FR] = "Choisissez où les journaux sont stockés. Le mode centralisé envoie les journaux à un conteneur Docker pour agrégation." },
             ["settings.large_file_title"] = new() { [Language.EN] = "Large File Transfer", [Language.FR] = "Transfert de Fichiers Volumineux" },
             ["settings.large_file_label"] = new() { [Language.EN] = "Large File Threshold (Ko)", [Language.FR] = "Seuil Fichier Volumineux (Ko)" },
             ["settings.large_file_help"] = new() { [Language.EN] = "Files above this size cannot be transferred simultaneously. Set to 0 to disable.", [Language.FR] = "Les fichiers dépassant ce seuil ne peuvent pas être transférés simultanément. 0 pour désactiver." },

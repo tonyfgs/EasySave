@@ -19,6 +19,8 @@ public class SettingsViewModel : ObservableObject
     private string _encryptionKey = string.Empty;
     private bool _detectionEnabled;
     private string _largeFileSizeThresholdKb = "0";
+    private LogMode _selectedLogMode;
+    private string _centralizedServerUrl = string.Empty;
 
     public Language SelectedLanguage
     {
@@ -66,6 +68,18 @@ public class SettingsViewModel : ObservableObject
         }
     }
 
+    public LogMode SelectedLogMode
+    {
+        get => _selectedLogMode;
+        set => SetProperty(ref _selectedLogMode, value);
+    }
+
+    public string CentralizedServerUrl
+    {
+        get => _centralizedServerUrl;
+        set => SetProperty(ref _centralizedServerUrl, value);
+    }
+
     public LocalizationService Localization => _localization;
 
     // Chip input collections
@@ -96,10 +110,18 @@ public class SettingsViewModel : ObservableObject
 
     public string CurrentFormatText => $"✓ {_selectedLogFormat} - {(_selectedLogFormat == LogFormat.JSON ? "JavaScript Object Notation" : "eXtensible Markup Language")}";
 
+    // Button colors for log mode
+    public string LocalOnlyButtonColor => _selectedLogMode == LogMode.LocalOnly ? "#4CAF50" : "#9E9E9E";
+    public string CentralizedOnlyButtonColor => _selectedLogMode == LogMode.CentralizedOnly ? "#4CAF50" : "#9E9E9E";
+    public string LocalAndCentralizedButtonColor => _selectedLogMode == LogMode.LocalAndCentralized ? "#4CAF50" : "#9E9E9E";
+
     public ICommand SelectEnglishCommand { get; }
     public ICommand SelectFrenchCommand { get; }
     public ICommand SelectJsonCommand { get; }
     public ICommand SelectXmlCommand { get; }
+    public ICommand SelectLocalOnlyCommand { get; }
+    public ICommand SelectCentralizedOnlyCommand { get; }
+    public ICommand SelectLocalAndCentralizedCommand { get; }
     public ICommand LoadSettingsCommand { get; }
     public ICommand SaveSettingsCommand { get; }
 
@@ -113,6 +135,9 @@ public class SettingsViewModel : ObservableObject
         SelectFrenchCommand = new RelayCommand(SelectFrench);
         SelectJsonCommand = new RelayCommand(SelectJson);
         SelectXmlCommand = new RelayCommand(SelectXml);
+        SelectLocalOnlyCommand = new RelayCommand(SelectLocalOnly);
+        SelectCentralizedOnlyCommand = new RelayCommand(SelectCentralizedOnly);
+        SelectLocalAndCentralizedCommand = new RelayCommand(SelectLocalAndCentralized);
         LoadSettingsCommand = new RelayCommand(LoadSettings);
         SaveSettingsCommand = new RelayCommand(SaveSettings);
 
@@ -153,11 +178,36 @@ public class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(FrenchButtonColor));
     }
 
+    private void SelectLocalOnly()
+    {
+        SelectedLogMode = LogMode.LocalOnly;
+        UpdateLogModeButtons();
+    }
+
+    private void SelectCentralizedOnly()
+    {
+        SelectedLogMode = LogMode.CentralizedOnly;
+        UpdateLogModeButtons();
+    }
+
+    private void SelectLocalAndCentralized()
+    {
+        SelectedLogMode = LogMode.LocalAndCentralized;
+        UpdateLogModeButtons();
+    }
+
     private void UpdateLogFormatButtons()
     {
         OnPropertyChanged(nameof(JsonButtonColor));
         OnPropertyChanged(nameof(XmlButtonColor));
         OnPropertyChanged(nameof(CurrentFormatText));
+    }
+
+    private void UpdateLogModeButtons()
+    {
+        OnPropertyChanged(nameof(LocalOnlyButtonColor));
+        OnPropertyChanged(nameof(CentralizedOnlyButtonColor));
+        OnPropertyChanged(nameof(LocalAndCentralizedButtonColor));
     }
 
     private void LoadSettings()
@@ -188,9 +238,14 @@ public class SettingsViewModel : ObservableObject
         _largeFileSizeThresholdKb = _appConfig.GetLargeFileSizeThresholdKb().ToString();
         OnPropertyChanged(nameof(LargeFileSizeThresholdKb));
 
+        _selectedLogMode = _appConfig.GetLogMode();
+        OnPropertyChanged(nameof(SelectedLogMode));
+        CentralizedServerUrl = _appConfig.GetCentralizedServerUrl();
+
         // Update UI
         UpdateLanguageButtons();
         UpdateLogFormatButtons();
+        UpdateLogModeButtons();
     }
 
     private void SaveSettings()
@@ -218,6 +273,10 @@ public class SettingsViewModel : ObservableObject
         // Save large file threshold
         if (long.TryParse(_largeFileSizeThresholdKb, out var threshold))
             _appConfig.SetLargeFileSizeThresholdKb(threshold);
+
+        // Save log mode settings
+        _appConfig.SetLogMode(SelectedLogMode);
+        _appConfig.SetCentralizedServerUrl(CentralizedServerUrl);
 
         // Persist to file
         _appConfig.Save();
