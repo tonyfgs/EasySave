@@ -1,3 +1,4 @@
+using Application.Concurrency;
 using Application.Events;
 using Application.Ports;
 using Application.Services;
@@ -20,6 +21,8 @@ public class BackupExecutorTests
     private readonly Mock<IBusinessSoftwareConfig> _mockDetectorConfig;
     private readonly Mock<ILargeFileTransferLock> _mockLargeFileLock;
     private readonly Mock<ILargeFileConfig> _mockLargeFileConfig;
+    private readonly Mock<IPriorityFileConfig> _mockPriorityFileConfig;
+    private readonly PriorityFileGate _priorityFileGate;
     private readonly BackupDomainService _domainService;
     private readonly BackupExecutor _executor;
 
@@ -34,6 +37,8 @@ public class BackupExecutorTests
         _mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
         _mockLargeFileLock = new Mock<ILargeFileTransferLock>();
         _mockLargeFileConfig = new Mock<ILargeFileConfig>();
+        _mockPriorityFileConfig = new Mock<IPriorityFileConfig>();
+        _priorityFileGate = new PriorityFileGate();
         _domainService = new BackupDomainService();
 
         _mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
@@ -42,6 +47,8 @@ public class BackupExecutorTests
         _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
         _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
         _mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0); // disabled
+        _mockPriorityFileConfig.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string>().AsReadOnly()); // no priority = old behavior
 
         _executor = new BackupExecutor(
             _mockFileSystem.Object,
@@ -53,7 +60,9 @@ public class BackupExecutorTests
             _mockDetector.Object,
             _mockDetectorConfig.Object,
             _mockLargeFileLock.Object,
-            _mockLargeFileConfig.Object);
+            _mockLargeFileConfig.Object,
+            _mockPriorityFileConfig.Object,
+            _priorityFileGate);
     }
 
     [Fact]
@@ -748,154 +757,6 @@ public class BackupExecutorTests
         _mockEncryptionService.Verify(s => s.EncryptFile(It.IsAny<string>()), Times.Once);
     }
 
-    // --- In-flight business software detection tests ---
-
-    [Fact]
-    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldStopAfterCurrentFile()
-    {
-        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
-        var strategy = new FullBackupStrategy();
-        var files = new List<FileDescriptor>
-        {
-            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
-            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now),
-            new(Path.Combine(SourcePath, "file3.txt"), 300, DateTime.Now)
-        };
-
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100L);
-        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
-
-        var result = await _executor.ExecuteAsync(job, strategy);
-
-        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
-        Assert.False(result.Success);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldSetStateToBlocked()
-    {
-        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
-        var strategy = new FullBackupStrategy();
-        var files = new List<FileDescriptor>
-        {
-            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
-            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
-        };
-
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100L);
-        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
-
-        var capturedEvents = new List<StateChangedEvent>();
-        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
-            .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
-
-        await _executor.ExecuteAsync(job, strategy);
-
-        var lastSnapshot = capturedEvents.Last().Snapshot;
-        Assert.Equal(JobState.Blocked, lastSnapshot.State);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldSetBlockReason()
-    {
-        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
-        var strategy = new FullBackupStrategy();
-        var files = new List<FileDescriptor>
-        {
-            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
-        };
-
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100L);
-        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
-
-        var capturedEvents = new List<StateChangedEvent>();
-        _mockEventBus.Setup(bus => bus.Publish(It.IsAny<StateChangedEvent>()))
-            .Callback<StateChangedEvent>(e => capturedEvents.Add(e));
-
-        await _executor.ExecuteAsync(job, strategy);
-
-        var lastSnapshot = capturedEvents.Last().Snapshot;
-        Assert.NotNull(lastSnapshot.BlockReason);
-        Assert.Contains("Business software", lastSnapshot.BlockReason);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_BusinessSoftwareRunning_ShouldPublishBusinessSoftwareDetectedEvent()
-    {
-        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
-        var strategy = new FullBackupStrategy();
-        var files = new List<FileDescriptor>
-        {
-            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now)
-        };
-
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100L);
-        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Running);
-
-        await _executor.ExecuteAsync(job, strategy);
-
-        _mockEventBus.Verify(bus => bus.Publish(It.Is<BusinessSoftwareDetectedEvent>(
-            e => e.JobName == "TestJob" && e.Status == BusinessSoftwareStatus.Running)), Times.Once);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_BusinessSoftwareUnknown_ShouldBlock_FailClosed()
-    {
-        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
-        var strategy = new FullBackupStrategy();
-        var files = new List<FileDescriptor>
-        {
-            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
-            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
-        };
-
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100L);
-        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Unknown);
-
-        var result = await _executor.ExecuteAsync(job, strategy);
-
-        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
-        Assert.False(result.Success);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_BusinessSoftwareError_ShouldBlock_FailClosed()
-    {
-        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
-        var strategy = new FullBackupStrategy();
-        var files = new List<FileDescriptor>
-        {
-            new(Path.Combine(SourcePath, "file1.txt"), 100, DateTime.Now),
-            new(Path.Combine(SourcePath, "file2.txt"), 200, DateTime.Now)
-        };
-
-        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
-        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(100L);
-        _mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(true);
-        _mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.Error);
-
-        var result = await _executor.ExecuteAsync(job, strategy);
-
-        _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
-        Assert.False(result.Success);
-    }
-
     [Fact]
     public async Task ExecuteAsync_BusinessSoftwareNotRunning_ShouldProcessAllFiles()
     {
@@ -1021,5 +882,256 @@ public class BackupExecutorTests
         Assert.True(result.Success);
         _mockFileSystem.Verify(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
         _mockDetector.Verify(d => d.GetStatus(), Times.Never);
+    }
+
+    // --- Priority file gate integration tests ---
+
+    [Fact]
+    public async Task ExecuteAsync_WithPriorityFiles_ProcessesPriorityFirst()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "a.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "b.docx"), 200, DateTime.Now),
+            new(Path.Combine(SourcePath, "c.txt"), 300, DateTime.Now)
+        };
+
+        _mockPriorityFileConfig.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string> { ".docx" }.AsReadOnly());
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var copiedFiles = new List<string>();
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((src, tgt, ct) => copiedFiles.Add(Path.GetFileName(src)))
+            .ReturnsAsync(100L);
+
+        var result = await _executor.ExecuteAsync(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.FilesProcessed);
+        // b.docx (priority) must come before a.txt and c.txt (non-priority)
+        Assert.Equal("b.docx", copiedFiles[0]);
+        Assert.Contains("a.txt", copiedFiles.Skip(1));
+        Assert.Contains("c.txt", copiedFiles.Skip(1));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NonPriorityWaitsForPriority()
+    {
+        // Two parallel jobs sharing the same PriorityFileGate.
+        // Job A has a priority file, Job B has only non-priority.
+        // Job B's non-priority file should wait until Job A's priority file completes.
+        var gate = new PriorityFileGate();
+
+        var mockFileSystemA = new Mock<IFileSystemGateway>();
+        var mockFileSystemB = new Mock<IFileSystemGateway>();
+        var mockPathAdapter = new Mock<IPathAdapter>();
+        mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
+        var mockEventBus = new Mock<IEventBus>();
+        var mockEncryptionConfig = new Mock<IEncryptionConfig>();
+        mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions()).Returns(new List<string>().AsReadOnly());
+        var mockEncryptionService = new Mock<IEncryptionService>();
+        var mockDetector = new Mock<IBusinessSoftwareDetector>();
+        mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+        var mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
+        mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        var mockLargeFileLock = new Mock<ILargeFileTransferLock>();
+        var mockLargeFileConfig = new Mock<ILargeFileConfig>();
+        mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0);
+
+        var priorityConfigA = new Mock<IPriorityFileConfig>();
+        priorityConfigA.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string> { ".docx" }.AsReadOnly());
+
+        var priorityConfigB = new Mock<IPriorityFileConfig>();
+        priorityConfigB.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string> { ".docx" }.AsReadOnly());
+
+        var domainService = new BackupDomainService();
+
+        var executorA = new BackupExecutor(
+            mockFileSystemA.Object, mockPathAdapter.Object, mockEventBus.Object, domainService,
+            mockEncryptionService.Object, mockEncryptionConfig.Object,
+            mockDetector.Object, mockDetectorConfig.Object,
+            mockLargeFileLock.Object, mockLargeFileConfig.Object,
+            priorityConfigA.Object, gate);
+
+        var executorB = new BackupExecutor(
+            mockFileSystemB.Object, mockPathAdapter.Object, mockEventBus.Object, domainService,
+            mockEncryptionService.Object, mockEncryptionConfig.Object,
+            mockDetector.Object, mockDetectorConfig.Object,
+            mockLargeFileLock.Object, mockLargeFileConfig.Object,
+            priorityConfigB.Object, gate);
+
+        var sourceA = Path.GetFullPath("/srcA");
+        var targetA = Path.GetFullPath("/dstA");
+        var sourceB = Path.GetFullPath("/srcB");
+        var targetB = Path.GetFullPath("/dstB");
+
+        var jobA = new BackupJob(1, "JobA", sourceA, targetA, BackupType.Full);
+        var jobB = new BackupJob(2, "JobB", sourceB, targetB, BackupType.Full);
+
+        var filesA = new List<FileDescriptor>
+        {
+            new(Path.Combine(sourceA, "priority.docx"), 100, DateTime.Now)
+        };
+        var filesB = new List<FileDescriptor>
+        {
+            new(Path.Combine(sourceB, "normal.txt"), 100, DateTime.Now)
+        };
+
+        mockFileSystemA.Setup(fs => fs.EnumerateFiles(sourceA)).Returns(filesA);
+        mockFileSystemB.Setup(fs => fs.EnumerateFiles(sourceB)).Returns(filesB);
+
+        // Track the order in which files are copied across both jobs
+        var copyOrder = new List<string>();
+        var lockObj = new object();
+
+        // Job A's priority file: simulate a delay to ensure ordering is observable
+        var priorityTcs = new TaskCompletionSource<long>();
+        mockFileSystemA.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>(async (src, tgt, ct) =>
+            {
+                var result = await priorityTcs.Task;
+                lock (lockObj) { copyOrder.Add("A:" + Path.GetFileName(src)); }
+                return result;
+            });
+
+        mockFileSystemB.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, tgt, ct) =>
+            {
+                lock (lockObj) { copyOrder.Add("B:" + Path.GetFileName(src)); }
+                return Task.FromResult(100L);
+            });
+
+        var strategy = new FullBackupStrategy();
+
+        // Start both jobs concurrently
+        var taskA = executorA.ExecuteAsync(jobA, strategy);
+        var taskB = executorB.ExecuteAsync(jobB, strategy);
+
+        // Give time for both to start and for B to reach the gate wait
+        await Task.Delay(100);
+
+        // At this point, B should be blocked because A's priority file hasn't completed
+        Assert.False(taskB.IsCompleted);
+
+        // Complete A's priority file
+        priorityTcs.SetResult(100L);
+
+        // Both should now complete
+        await Task.WhenAll(taskA, taskB);
+
+        Assert.True((await taskA).Success);
+        Assert.True((await taskB).Success);
+
+        // A's priority file must have been copied before B's non-priority file
+        Assert.Equal("A:priority.docx", copyOrder[0]);
+        Assert.Equal("B:normal.txt", copyOrder[1]);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_StopDuringPriority_ReleasesRemainingCount()
+    {
+        var gate = new PriorityFileGate();
+
+        var mockFileSystem = new Mock<IFileSystemGateway>();
+        var mockPathAdapter = new Mock<IPathAdapter>();
+        mockPathAdapter.Setup(p => p.ToUNC(It.IsAny<string>())).Returns<string>(s => s);
+        var mockEventBus = new Mock<IEventBus>();
+        var mockEncryptionConfig = new Mock<IEncryptionConfig>();
+        mockEncryptionConfig.Setup(c => c.GetEncryptedExtensions()).Returns(new List<string>().AsReadOnly());
+        var mockEncryptionService = new Mock<IEncryptionService>();
+        var mockDetector = new Mock<IBusinessSoftwareDetector>();
+        mockDetector.Setup(d => d.GetStatus()).Returns(BusinessSoftwareStatus.NotRunning);
+        var mockDetectorConfig = new Mock<IBusinessSoftwareConfig>();
+        mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
+        var mockLargeFileLock = new Mock<ILargeFileTransferLock>();
+        var mockLargeFileConfig = new Mock<ILargeFileConfig>();
+        mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0);
+
+        var priorityConfig = new Mock<IPriorityFileConfig>();
+        priorityConfig.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string> { ".docx" }.AsReadOnly());
+
+        var domainService = new BackupDomainService();
+
+        var executor = new BackupExecutor(
+            mockFileSystem.Object, mockPathAdapter.Object, mockEventBus.Object, domainService,
+            mockEncryptionService.Object, mockEncryptionConfig.Object,
+            mockDetector.Object, mockDetectorConfig.Object,
+            mockLargeFileLock.Object, mockLargeFileConfig.Object,
+            priorityConfig.Object, gate);
+
+        var source = Path.GetFullPath("/src");
+        var target = Path.GetFullPath("/dst");
+        var job = new BackupJob(1, "TestJob", source, target, BackupType.Full);
+
+        // 3 priority files
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(source, "a.docx"), 100, DateTime.Now),
+            new(Path.Combine(source, "b.docx"), 200, DateTime.Now),
+            new(Path.Combine(source, "c.docx"), 300, DateTime.Now)
+        };
+
+        mockFileSystem.Setup(fs => fs.EnumerateFiles(source)).Returns(files);
+
+        int copyCount = 0;
+        mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns<string, string, CancellationToken>((src, tgt, ct) =>
+            {
+                copyCount++;
+                if (copyCount == 1)
+                {
+                    // After first copy, request stop via event
+                    mockEventBus.Raise(bus => bus.Subscribe(It.IsAny<IEventHandler<StopRequestedEvent>>()), new StopRequestedEvent(job.Id));
+                    // Directly invoke the handler since we're using a mock event bus
+                    executor.Handle(new StopRequestedEvent(job.Id));
+                }
+                return Task.FromResult(100L);
+            });
+
+        var strategy = new FullBackupStrategy();
+        await executor.ExecuteAsync(job, strategy);
+
+        // After execution, gate should have released all remaining priority files
+        Assert.Equal(0, gate.RemainingCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NoPriorityExtensions_ProcessesAllNormally()
+    {
+        var job = new BackupJob(1, "TestJob", SourcePath, TargetPath, BackupType.Full);
+        var strategy = new FullBackupStrategy();
+        var files = new List<FileDescriptor>
+        {
+            new(Path.Combine(SourcePath, "a.txt"), 100, DateTime.Now),
+            new(Path.Combine(SourcePath, "b.docx"), 200, DateTime.Now),
+            new(Path.Combine(SourcePath, "c.pdf"), 300, DateTime.Now)
+        };
+
+        // Explicitly set empty priority extensions (default)
+        _mockPriorityFileConfig.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string>().AsReadOnly());
+
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(SourcePath)).Returns(files);
+
+        var copiedFiles = new List<string>();
+        _mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((src, tgt, ct) => copiedFiles.Add(Path.GetFileName(src)))
+            .ReturnsAsync(100L);
+
+        var result = await _executor.ExecuteAsync(job, strategy);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.FilesProcessed);
+        // With no priority extensions, all files are non-priority and processed in original order
+        Assert.Equal("a.txt", copiedFiles[0]);
+        Assert.Equal("b.docx", copiedFiles[1]);
+        Assert.Equal("c.pdf", copiedFiles[2]);
     }
 }

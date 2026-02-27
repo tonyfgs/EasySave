@@ -1,3 +1,4 @@
+using Application.Concurrency;
 using Application.Events;
 using Application.Ports;
 using Application.Services;
@@ -42,16 +43,23 @@ public class ConsoleIntegrationTests
         mockFileSystem.Setup(fs => fs.CopyFileAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(0L);
 
+        var mockPriorityFileConfig = new Mock<IPriorityFileConfig>();
+        mockPriorityFileConfig.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string>().AsReadOnly());
+        var priorityFileGate = new PriorityFileGate();
+
         var executor = new BackupExecutor(
             mockFileSystem.Object, mockPathAdapter.Object,
             mockEventBus.Object, domainService,
             mockEncryptionService.Object, mockEncryptionConfig.Object,
             mockDetector.Object, mockDetectorConfig.Object,
-            mockLargeFileLock.Object, mockLargeFileConfig.Object);
+            mockLargeFileLock.Object, mockLargeFileConfig.Object,
+            mockPriorityFileConfig.Object, priorityFileGate);
         var strategyFactory = new BackupStrategyFactory();
+        var watcher = new BusinessSoftwareWatcher(
+            mockDetector.Object, mockDetectorConfig.Object, executor);
         return new BackupExecutionService(
-            mockRepo.Object, executor, strategyFactory,
-            mockDetector.Object, mockDetectorConfig.Object, mockEventBus.Object);
+            mockRepo.Object, executor, strategyFactory, watcher);
     }
 
     [Fact]

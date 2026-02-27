@@ -1,3 +1,4 @@
+using Application.Concurrency;
 using Application.Events;
 using Application.Handlers;
 using Application.Ports;
@@ -48,17 +49,21 @@ public class Program
         IBusinessSoftwareConfig businessSoftwareConfig = appConfig;
         ILargeFileConfig largeFileConfig = appConfig;
         var largeFileLock = new SemaphoreLargeFileTransferLock();
+        IPriorityFileConfig priorityFileConfig = appConfig;
+        var priorityFileGate = new PriorityFileGate();
 
         var languageService = new LanguageApplicationService(appConfig);
         var backupExecutor = new BackupExecutor(
             fileSystem, pathAdapter, eventBus, domainService,
             encryptionService, encryptionConfig, businessSoftwareDetector,
-            businessSoftwareConfig, largeFileLock, largeFileConfig);
+            businessSoftwareConfig, largeFileLock, largeFileConfig,
+            priorityFileConfig, priorityFileGate);
         var strategyFactory = new BackupStrategyFactory();
         var jobService = new JobManagementService(jobRepository);
+        var watcher = new BusinessSoftwareWatcher(
+            businessSoftwareDetector, businessSoftwareConfig, backupExecutor);
         var executionService = new BackupExecutionService(
-            jobRepository, backupExecutor, strategyFactory,
-            businessSoftwareDetector, businessSoftwareConfig, eventBus);
+            jobRepository, backupExecutor, strategyFactory, watcher);
 
         var languageManager = new LanguageManager(languageService);
         var inputParser = new InputParser();

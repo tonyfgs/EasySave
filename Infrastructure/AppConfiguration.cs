@@ -4,7 +4,7 @@ using Shared;
 
 namespace Infrastructure;
 
-public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig, ILargeFileConfig
+public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig, ILargeFileConfig, IPriorityFileConfig
 {
     private readonly string _configPath;
     private readonly string _logDirectory;
@@ -15,6 +15,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
     private string _businessSoftwareName;
     private bool _detectionEnabled;
     private long _largeFileSizeThresholdKb;
+    private List<string> _priorityExtensions;
 
     public AppConfiguration(string configPath, string logDirectory)
     {
@@ -27,6 +28,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _businessSoftwareName = string.Empty;
         _detectionEnabled = false;
         _largeFileSizeThresholdKb = 0;
+        _priorityExtensions = new List<string>();
         Load();
     }
 
@@ -61,6 +63,11 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
 
     public void SetLargeFileSizeThresholdKb(long thresholdKb) => _largeFileSizeThresholdKb = thresholdKb;
 
+    public IReadOnlyList<string> GetPriorityExtensions() => _priorityExtensions.AsReadOnly();
+
+    public void SetPriorityExtensions(IReadOnlyList<string> extensions) =>
+        _priorityExtensions = new List<string>(extensions);
+
     public void Save()
     {
         var directory = Path.GetDirectoryName(_configPath);
@@ -75,7 +82,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
             EncryptionKey = _encryptionKey,
             BusinessSoftwareName = _businessSoftwareName,
             DetectionEnabled = _detectionEnabled,
-            LargeFileSizeThresholdKb = _largeFileSizeThresholdKb
+            LargeFileSizeThresholdKb = _largeFileSizeThresholdKb,
+            PriorityExtensions = _priorityExtensions
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -103,6 +111,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _businessSoftwareName = data.BusinessSoftwareName;
         _detectionEnabled = data.DetectionEnabled;
         _largeFileSizeThresholdKb = data.LargeFileSizeThresholdKb;
+        _priorityExtensions = new List<string>(data.PriorityExtensions);
     }
 
     private class ConfigData
@@ -114,5 +123,6 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         public string BusinessSoftwareName { get; set; } = string.Empty;
         public bool DetectionEnabled { get; set; }
         public long LargeFileSizeThresholdKb { get; set; }
+        public List<string> PriorityExtensions { get; set; } = new();
     }
 }

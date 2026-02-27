@@ -71,6 +71,7 @@ public class SettingsViewModel : ObservableObject
     // Chip input collections
     public ObservableCollection<string> SelectedExtensions { get; } = new();
     public ObservableCollection<string> SelectedBusinessSoftware { get; } = new();
+    public ObservableCollection<string> SelectedPriorityExtensions { get; } = new();
 
     public List<string> AvailableExtensions { get; } = new()
     {
@@ -171,6 +172,11 @@ public class SettingsViewModel : ObservableObject
 
         EncryptionKey = _appConfig.GetEncryptionKey();
 
+        // Load priority extensions into ObservableCollection
+        SelectedPriorityExtensions.Clear();
+        foreach (var ext in _appConfig.GetPriorityExtensions())
+            SelectedPriorityExtensions.Add(ext);
+
         // Load business software name into ObservableCollection
         SelectedBusinessSoftware.Clear();
         var softwareName = _appConfig.GetBusinessSoftwareName();
@@ -200,6 +206,9 @@ public class SettingsViewModel : ObservableObject
 
         // Save encryption key
         _appConfig.SetEncryptionKey(EncryptionKey);
+
+        // Save priority extensions from ObservableCollection
+        _appConfig.SetPriorityExtensions(SelectedPriorityExtensions.ToList());
 
         // Save business software settings (single name from collection)
         var softwareName = SelectedBusinessSoftware.FirstOrDefault() ?? string.Empty;

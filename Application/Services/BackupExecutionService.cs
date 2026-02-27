@@ -1,5 +1,4 @@
 using Application.DTOs;
-using Application.Events;
 using Application.Ports;
 using Model;
 
@@ -10,24 +9,18 @@ public class BackupExecutionService
     private readonly IJobRepository _repository;
     private readonly BackupExecutor _executor;
     private readonly BackupStrategyFactory _strategyFactory;
-    private readonly IBusinessSoftwareDetector _detector;
-    private readonly IBusinessSoftwareConfig _detectorConfig;
-    private readonly IEventBus _eventBus;
+    private readonly BusinessSoftwareWatcher _watcher;
 
     public BackupExecutionService(
         IJobRepository repository,
         BackupExecutor executor,
         BackupStrategyFactory strategyFactory,
-        IBusinessSoftwareDetector detector,
-        IBusinessSoftwareConfig detectorConfig,
-        IEventBus eventBus)
+        BusinessSoftwareWatcher watcher)
     {
         _repository = repository;
         _executor = executor;
         _strategyFactory = strategyFactory;
-        _detector = detector;
-        _detectorConfig = detectorConfig;
-        _eventBus = eventBus;
+        _watcher = watcher;
     }
 
     [Obsolete("Deadlocks on UI threads. Use ExecuteJobsAsync instead.")]
@@ -45,7 +38,6 @@ public class BackupExecutionService
 
         ct.ThrowIfCancellationRequested();
 
-        // Phase 1 — sequential pre-flight: resolve jobs and detect blocking software
         var earlyFailures = new List<JobExecutionResult>();
         var validJobs = new List<(BackupJob Job, IBackupStrategy Strategy)>();
 
@@ -61,38 +53,30 @@ public class BackupExecutionService
                 continue;
             }
 
-            if (_detectorConfig.IsDetectionEnabled())
-            {
-                var status = _detector.GetStatus();
-                if (status.IsBlocking())
-                {
-                    _eventBus.Publish(new BusinessSoftwareDetectedEvent(
-                        job.Name, status, DateTime.UtcNow));
-                    earlyFailures.Add(new JobExecutionResult(jobId,
-                        BackupResult.Fail(
-                            new List<string> { $"Business software detected ({status})" },
-                            TimeSpan.Zero)));
-                    // Fail-safe: one blocking software aborts all remaining jobs
-                    break;
-                }
-            }
-
             validJobs.Add((job, _strategyFactory.Create(job.Type)));
         }
 
-        // Phase 2 — execute all valid jobs in parallel
-        var tasks = validJobs.Select(async entry =>
+        // V3: start business software watcher for auto-pause during execution
+        _watcher.Start();
+        try
         {
-            var result = await _executor.ExecuteAsync(entry.Job, entry.Strategy, ct).ConfigureAwait(false);
-            _repository.Update(entry.Job);
-            return new JobExecutionResult(entry.Job.Id, result);
-        });
+            var tasks = validJobs.Select(async entry =>
+            {
+                var result = await _executor.ExecuteAsync(entry.Job, entry.Strategy, ct).ConfigureAwait(false);
+                _repository.Update(entry.Job);
+                return new JobExecutionResult(entry.Job.Id, result);
+            });
 
-        var parallelResults = await Task.WhenAll(tasks).ConfigureAwait(false);
+            var parallelResults = await Task.WhenAll(tasks).ConfigureAwait(false);
 
-        var combined = new List<JobExecutionResult>(earlyFailures);
-        combined.AddRange(parallelResults);
-        return combined;
+            var combined = new List<JobExecutionResult>(earlyFailures);
+            combined.AddRange(parallelResults);
+            return combined;
+        }
+        finally
+        {
+            await _watcher.StopAsync().ConfigureAwait(false);
+        }
     }
 
     public async Task<List<JobExecutionResult>> ExecuteAllJobsAsync(CancellationToken ct = default)

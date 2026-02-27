@@ -1,3 +1,4 @@
+using Application.Concurrency;
 using Application.Events;
 using Application.Ports;
 using Application.Services;
@@ -38,16 +39,23 @@ public class ExecuteJobCommandTests
         mockDetectorConfig.Setup(c => c.IsDetectionEnabled()).Returns(false);
         mockLargeFileConfig.Setup(c => c.GetLargeFileSizeThresholdKb()).Returns(0);
 
+        var mockPriorityFileConfig = new Mock<IPriorityFileConfig>();
+        mockPriorityFileConfig.Setup(c => c.GetPriorityExtensions())
+            .Returns(new List<string>().AsReadOnly());
+        var priorityFileGate = new PriorityFileGate();
+
         var executor = new BackupExecutor(
             mockFileSystem.Object, mockPathAdapter.Object,
             mockEventBus.Object, domainService,
             mockEncryptionService.Object, mockEncryptionConfig.Object,
             mockDetector.Object, mockDetectorConfig.Object,
-            mockLargeFileLock.Object, mockLargeFileConfig.Object);
+            mockLargeFileLock.Object, mockLargeFileConfig.Object,
+            mockPriorityFileConfig.Object, priorityFileGate);
 
+        var watcher = new BusinessSoftwareWatcher(
+            mockDetector.Object, mockDetectorConfig.Object, executor);
         var executionService = new BackupExecutionService(
-            _mockRepo.Object, executor, strategyFactory,
-            mockDetector.Object, mockDetectorConfig.Object, mockEventBus.Object);
+            _mockRepo.Object, executor, strategyFactory, watcher);
         _command = new ExecuteJobCommand(executionService, TextWriter.Null);
     }
 

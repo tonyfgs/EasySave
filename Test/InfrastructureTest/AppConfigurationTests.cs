@@ -280,4 +280,54 @@ public class AppConfigurationTests : IDisposable
         Assert.Equal(string.Empty, config.GetBusinessSoftwareName());
         Assert.False(config.IsDetectionEnabled());
     }
+
+    // --- IPriorityFileConfig tests ---
+
+    [Fact]
+    public void AppConfiguration_ImplementsIPriorityFileConfig()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.IsAssignableFrom<IPriorityFileConfig>(config);
+    }
+
+    [Fact]
+    public void GetPriorityExtensions_Default_ShouldReturnEmptyList()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Empty(config.GetPriorityExtensions());
+    }
+
+    [Fact]
+    public void SetPriorityExtensions_ThenGet_ShouldRoundTrip()
+    {
+        var config = new AppConfiguration(_configPath, "/logs");
+        var extensions = new List<string> { ".docx", ".pdf", ".xlsx" }.AsReadOnly();
+
+        config.SetPriorityExtensions(extensions);
+
+        Assert.Equal(extensions, config.GetPriorityExtensions());
+    }
+
+    [Fact]
+    public void Save_ThenLoad_ShouldPersistPriorityExtensions()
+    {
+        var config1 = new AppConfiguration(_configPath, "/logs");
+        config1.SetPriorityExtensions(new List<string> { ".docx", ".pptx" }.AsReadOnly());
+        config1.Save();
+
+        var config2 = new AppConfiguration(_configPath, "/logs");
+
+        Assert.Equal(new List<string> { ".docx", ".pptx" }, config2.GetPriorityExtensions());
+    }
+
+    [Fact]
+    public void Load_FromNonExistentFile_ShouldUsePriorityDefaults()
+    {
+        var missingPath = Path.Combine(_testDir, "missing", "config.json");
+        var config = new AppConfiguration(missingPath, "/logs");
+
+        Assert.Empty(config.GetPriorityExtensions());
+    }
 }
