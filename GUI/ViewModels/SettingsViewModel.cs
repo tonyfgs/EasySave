@@ -96,8 +96,8 @@ public class SettingsViewModel : ObservableObject
 
     public List<string> AvailableBusinessSoftware { get; } = new()
     {
-        "Calculator", "Notepad", "Word", "Excel", "PowerPoint",
-        "Outlook", "Teams", "Slack", "Chrome", "Firefox"
+        "Calculator", "Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint",
+        "Microsoft Outlook", "Microsoft Teams", "Slack", "Google Chrome", "Firefox", "Safari"
     };
 
     // Button colors for language
@@ -280,5 +280,8 @@ public class SettingsViewModel : ObservableObject
 
         // Persist to file
         _appConfig.Save();
+
+        // Sync log mode to the live adapter
+        ServiceLocator.LogCentralizationAdapter.SetLogMode(SelectedLogMode);
     }
 }

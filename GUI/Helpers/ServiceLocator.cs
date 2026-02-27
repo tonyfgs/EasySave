@@ -26,6 +26,7 @@ public static class ServiceLocator
     public static IEventBus EventBus { get; private set; } = null!;
     public static IStateManager StateManager { get; private set; } = null!;
     public static AppConfiguration AppConfiguration { get; private set; } = null!;
+    public static LogCentralizationAdapter LogCentralizationAdapter { get; private set; } = null!;
 
     public static void Initialize()
     {
@@ -45,7 +46,11 @@ public static class ServiceLocator
         AppConfiguration = appConfig;
 
         var easyLogger = new DailyLogsService();
-        var transferLogger = new DynamicTransferLogger(appConfig, easyLogger);
+        var logCentralizationAdapter = new LogCentralizationAdapter(
+            appConfig.GetCentralizedServerUrl(),
+            appConfig.GetLogMode());
+        LogCentralizationAdapter = logCentralizationAdapter;
+        var transferLogger = new DynamicTransferLogger(appConfig, easyLogger, logCentralizationAdapter);
 
         var eventBus = new InProcessEventBus();
         EventBus = eventBus;
@@ -84,7 +89,8 @@ public static class ServiceLocator
         var watcher = new BusinessSoftwareWatcher(
             businessSoftwareDetector, businessSoftwareConfig, backupExecutor);
         BackupExecutionService = new BackupExecutionService(
-            jobRepository, backupExecutor, strategyFactory, watcher);
+            jobRepository, backupExecutor, strategyFactory, watcher,
+            businessSoftwareDetector, businessSoftwareConfig);
         LanguageApplicationService = new LanguageApplicationService(appConfig);
         LocalizationService = new LocalizationService(LanguageApplicationService);
 

@@ -63,7 +63,8 @@ public class BackupExecutionServiceTests
         var watcher = new BusinessSoftwareWatcher(
             _mockDetector.Object, _mockDetectorConfig.Object, executor);
         _service = new BackupExecutionService(
-            _mockRepo.Object, executor, strategyFactory, watcher);
+            _mockRepo.Object, executor, strategyFactory, watcher,
+            _mockDetector.Object, _mockDetectorConfig.Object);
     }
 
     [Fact]

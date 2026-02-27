@@ -63,7 +63,8 @@ public class Program
         var watcher = new BusinessSoftwareWatcher(
             businessSoftwareDetector, businessSoftwareConfig, backupExecutor);
         var executionService = new BackupExecutionService(
-            jobRepository, backupExecutor, strategyFactory, watcher);
+            jobRepository, backupExecutor, strategyFactory, watcher,
+            businessSoftwareDetector, businessSoftwareConfig);
 
         var languageManager = new LanguageManager(languageService);
         var inputParser = new InputParser();

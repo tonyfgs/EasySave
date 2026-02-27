@@ -15,12 +15,9 @@ var app = builder.Build();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-// Configure Swagger for development
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Configure Swagger
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Health check endpoint
 app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))

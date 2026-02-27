@@ -59,7 +59,8 @@ public class ConsoleIntegrationTests
         var watcher = new BusinessSoftwareWatcher(
             mockDetector.Object, mockDetectorConfig.Object, executor);
         return new BackupExecutionService(
-            mockRepo.Object, executor, strategyFactory, watcher);
+            mockRepo.Object, executor, strategyFactory, watcher,
+            mockDetector.Object, mockDetectorConfig.Object);
     }
 
     [Fact]

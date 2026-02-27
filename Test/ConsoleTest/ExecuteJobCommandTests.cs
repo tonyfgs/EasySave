@@ -55,7 +55,8 @@ public class ExecuteJobCommandTests
         var watcher = new BusinessSoftwareWatcher(
             mockDetector.Object, mockDetectorConfig.Object, executor);
         var executionService = new BackupExecutionService(
-            _mockRepo.Object, executor, strategyFactory, watcher);
+            _mockRepo.Object, executor, strategyFactory, watcher,
+            mockDetector.Object, mockDetectorConfig.Object);
         _command = new ExecuteJobCommand(executionService, TextWriter.Null);
     }
 

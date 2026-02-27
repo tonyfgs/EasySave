@@ -10,17 +10,23 @@ public class BackupExecutionService
     private readonly BackupExecutor _executor;
     private readonly BackupStrategyFactory _strategyFactory;
     private readonly BusinessSoftwareWatcher _watcher;
+    private readonly IBusinessSoftwareDetector _detector;
+    private readonly IBusinessSoftwareConfig _detectorConfig;
 
     public BackupExecutionService(
         IJobRepository repository,
         BackupExecutor executor,
         BackupStrategyFactory strategyFactory,
-        BusinessSoftwareWatcher watcher)
+        BusinessSoftwareWatcher watcher,
+        IBusinessSoftwareDetector detector,
+        IBusinessSoftwareConfig detectorConfig)
     {
         _repository = repository;
         _executor = executor;
         _strategyFactory = strategyFactory;
         _watcher = watcher;
+        _detector = detector;
+        _detectorConfig = detectorConfig;
     }
 
     [Obsolete("Deadlocks on UI threads. Use ExecuteJobsAsync instead.")]
@@ -51,6 +57,20 @@ public class BackupExecutionService
                         new List<string> { $"Job with ID {jobId} not found." },
                         TimeSpan.Zero)));
                 continue;
+            }
+
+            // Pre-flight check: block if business software is running
+            if (_detectorConfig.IsDetectionEnabled())
+            {
+                var status = _detector.GetStatus();
+                if (status.IsBlocking())
+                {
+                    earlyFailures.Add(new JobExecutionResult(jobId,
+                        BackupResult.Fail(
+                            new List<string> { $"Business software detected ({status})" },
+                            TimeSpan.Zero)));
+                    break;
+                }
             }
 
             validJobs.Add((job, _strategyFactory.Create(job.Type)));
