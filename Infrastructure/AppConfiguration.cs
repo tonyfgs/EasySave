@@ -4,7 +4,7 @@ using Shared;
 
 namespace Infrastructure;
 
-public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig, ILargeFileConfig, IPriorityFileConfig
+public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSoftwareConfig, ILargeFileConfig, IPriorityFileConfig, ILogModeConfig
 {
     private readonly string _configPath;
     private readonly string _logDirectory;
@@ -16,6 +16,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
     private bool _detectionEnabled;
     private long _largeFileSizeThresholdKb;
     private List<string> _priorityExtensions;
+    private LogMode _logMode;
+    private string _centralizedServerUrl;
 
     public AppConfiguration(string configPath, string logDirectory)
     {
@@ -29,6 +31,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _detectionEnabled = false;
         _largeFileSizeThresholdKb = 0;
         _priorityExtensions = new List<string>();
+        _logMode = LogMode.LocalOnly;
+        _centralizedServerUrl = "http://localhost:5050";
         Load();
     }
 
@@ -68,6 +72,14 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
     public void SetPriorityExtensions(IReadOnlyList<string> extensions) =>
         _priorityExtensions = new List<string>(extensions);
 
+    public LogMode GetLogMode() => _logMode;
+
+    public void SetLogMode(LogMode mode) => _logMode = mode;
+
+    public string GetCentralizedServerUrl() => _centralizedServerUrl;
+
+    public void SetCentralizedServerUrl(string url) => _centralizedServerUrl = url;
+
     public void Save()
     {
         var directory = Path.GetDirectoryName(_configPath);
@@ -83,7 +95,9 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
             BusinessSoftwareName = _businessSoftwareName,
             DetectionEnabled = _detectionEnabled,
             LargeFileSizeThresholdKb = _largeFileSizeThresholdKb,
-            PriorityExtensions = _priorityExtensions
+            PriorityExtensions = _priorityExtensions,
+            LogMode = _logMode,
+            CentralizedServerUrl = _centralizedServerUrl
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true };
@@ -112,6 +126,8 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         _detectionEnabled = data.DetectionEnabled;
         _largeFileSizeThresholdKb = data.LargeFileSizeThresholdKb;
         _priorityExtensions = new List<string>(data.PriorityExtensions);
+        _logMode = data.LogMode;
+        _centralizedServerUrl = data.CentralizedServerUrl;
     }
 
     private class ConfigData
@@ -124,5 +140,7 @@ public class AppConfiguration : ILanguageConfig, IEncryptionConfig, IBusinessSof
         public bool DetectionEnabled { get; set; }
         public long LargeFileSizeThresholdKb { get; set; }
         public List<string> PriorityExtensions { get; set; } = new();
+        public LogMode LogMode { get; set; } = LogMode.LocalOnly;
+        public string CentralizedServerUrl { get; set; } = "http://localhost:5050";
     }
 }

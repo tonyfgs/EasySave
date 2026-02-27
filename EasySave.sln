@@ -35,6 +35,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoSoft", "CryptoSoft\Cr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FakeCryptoServer", "Test\FakeCryptoServer\FakeCryptoServer.csproj", "{9A9501BB-510A-4207-808A-0DEF97EDDDD6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LogCentralizer", "LogCentralizer\LogCentralizer.csproj", "{B96505B9-DA3B-421E-8C58-D111582A7C75}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,10 @@ Global
 		{9A9501BB-510A-4207-808A-0DEF97EDDDD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9A9501BB-510A-4207-808A-0DEF97EDDDD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9A9501BB-510A-4207-808A-0DEF97EDDDD6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B96505B9-DA3B-421E-8C58-D111582A7C75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B96505B9-DA3B-421E-8C58-D111582A7C75}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B96505B9-DA3B-421E-8C58-D111582A7C75}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B96505B9-DA3B-421E-8C58-D111582A7C75}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{FE9500ED-538A-4684-8399-7F5A279D03D1} = {BC03637D-25F2-45DF-994D-A2B98BDBBEDE}
