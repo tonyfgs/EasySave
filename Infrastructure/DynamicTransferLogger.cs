@@ -14,7 +14,7 @@ public class DynamicTransferLogger : ITransferLogger
     private readonly AppConfiguration _config;
     private readonly IEasyLogger _easyLogger;
 
-    public DynamicTransferLogger(AppConfiguration config, IEasyLogger easyLogger, string logDirectory)
+    public DynamicTransferLogger(AppConfiguration config, IEasyLogger easyLogger)
     {
         _config = config;
         _easyLogger = easyLogger;
@@ -22,37 +22,18 @@ public class DynamicTransferLogger : ITransferLogger
 
     public void LogTransfer(TransferLog transfer)
     {
-        try
+        var currentFormat = _config.GetLogFormat();
+        var logDir = _config.GetLogDirectory();
+
+        Directory.CreateDirectory(logDir);
+
+        ITransferLogger logger = currentFormat switch
         {
-            // Get the current format and create the appropriate logger
-            var currentFormat = _config.GetLogFormat();
-            var logDir = _config.GetLogDirectory();
+            Shared.LogFormat.JSON => new JsonTransferLogger(logDir),
+            Shared.LogFormat.XML => new XmlTransferLogger(logDir, _easyLogger),
+            _ => throw new ArgumentOutOfRangeException(nameof(currentFormat))
+        };
 
-            // Debug: Print to console
-            Console.WriteLine($"[DynamicTransferLogger] Logging transfer: {transfer.BackupName} - {transfer.SourcePath}");
-            Console.WriteLine($"[DynamicTransferLogger] Format: {currentFormat}, Directory: {logDir}");
-
-            // Ensure directory exists
-            Directory.CreateDirectory(logDir);
-
-            // Create a new logger with the current format
-            ITransferLogger logger = currentFormat switch
-            {
-                Shared.LogFormat.JSON => new JsonTransferLogger(logDir),
-                Shared.LogFormat.XML => new XmlTransferLogger(logDir, _easyLogger),
-                _ => throw new ArgumentOutOfRangeException(nameof(currentFormat))
-            };
-
-            // Use the logger to log the transfer
-            logger.LogTransfer(transfer);
-
-            var expectedFile = Path.Combine(logDir, $"{DateTime.Now:yyyy-MM-dd}.{(currentFormat == Shared.LogFormat.JSON ? "json" : "xml")}");
-            Console.WriteLine($"[DynamicTransferLogger] ✓ Log written to: {expectedFile}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[DynamicTransferLogger] ❌ ERROR: {ex.Message}");
-            Console.WriteLine($"[DynamicTransferLogger] Stack: {ex.StackTrace}");
-        }
+        logger.LogTransfer(transfer);
     }
 }

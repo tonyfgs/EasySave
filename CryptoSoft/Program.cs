@@ -31,17 +31,16 @@ class Program
             return 0;
         }
 
-        // Chiffrement/déchiffrement nécessitent 3 arguments
-        if (args.Length < 3)
+        if (args.Length < 2)
         {
-            Console.Error.WriteLine("Erreur : Nombre d'arguments insuffisant.");
+            Console.Error.WriteLine("Error: insufficient arguments.");
             Console.Error.WriteLine();
             ShowUsage();
             return 2;
         }
 
         string filePath = args[1];
-        string keyBase64 = args[2];
+        string keyBase64 = Environment.GetEnvironmentVariable("CRYPTOSOFT_KEY") ?? (args.Length >= 3 ? args[2] : string.Empty);
 
         if (string.IsNullOrWhiteSpace(keyBase64))
         {

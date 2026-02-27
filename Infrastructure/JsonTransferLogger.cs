@@ -16,7 +16,7 @@ public class JsonTransferLogger : ITransferLogger
     public void LogTransfer(TransferLog log)
     {
         Directory.CreateDirectory(_logDirectory);
-        var filePath = Path.Combine(_logDirectory, $"{DateTime.Now:yyyy-MM-dd}.json");
+        var filePath = Path.Combine(_logDirectory, $"{DateTime.UtcNow:yyyy-MM-dd}.json");
 
         var entries = new List<TransferLog>();
         if (File.Exists(filePath))

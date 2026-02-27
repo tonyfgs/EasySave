@@ -30,7 +30,7 @@ public class CryptoSoftAdapter : IEncryptionService
     {
         var key = _config.GetEncryptionKey();
 
-        // Si clé vide -> pas de chiffrement, succès immédiat
+        // Empty key — no encryption, immediate success
         if (string.IsNullOrWhiteSpace(key))
         {
             return new CryptoResult
@@ -50,12 +50,13 @@ public class CryptoSoftAdapter : IEncryptionService
             process.StartInfo = new ProcessStartInfo
             {
                 FileName = _cryptoSoftPath,
-                Arguments = $"{subcommand} \"{filePath}\" \"{key}\"",
+                Arguments = $"{subcommand} \"{filePath}\"",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
+            process.StartInfo.Environment["CRYPTOSOFT_KEY"] = key;
 
             process.Start();
 
@@ -64,13 +65,13 @@ public class CryptoSoftAdapter : IEncryptionService
 
             if (!exited)
             {
-                try { process.Kill(); } catch { /* Ignorer les erreurs de kill */ }
+                try { process.Kill(); } catch { /* Ignore kill errors */ }
                 return new CryptoResult
                 {
                     Success = false,
                     DurationMs = stopwatch.ElapsedMilliseconds,
                     ErrorCode = CryptoErrorCode.Timeout,
-                    ErrorMessage = $"CryptoSoft timeout après {_timeoutMs}ms"
+                    ErrorMessage = $"CryptoSoft timed out after {_timeoutMs}ms"
                 };
             }
 
@@ -95,7 +96,7 @@ public class CryptoSoftAdapter : IEncryptionService
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = errorCode,
                 ErrorMessage = string.IsNullOrWhiteSpace(errorOutput)
-                    ? $"CryptoSoft {subcommand} échoué avec code {exitCode}"
+                    ? $"CryptoSoft {subcommand} failed with exit code {exitCode}"
                     : errorOutput.Trim()
             };
         }
@@ -107,7 +108,7 @@ public class CryptoSoftAdapter : IEncryptionService
                 Success = false,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 ErrorCode = CryptoErrorCode.Unknown,
-                ErrorMessage = $"Erreur lors de l'exécution de CryptoSoft: {ex.Message}"
+                ErrorMessage = $"Error executing CryptoSoft: {ex.Message}"
             };
         }
     }

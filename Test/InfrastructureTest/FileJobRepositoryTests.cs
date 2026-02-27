@@ -152,4 +152,19 @@ public class FileJobRepositoryTests : IDisposable
         Assert.Equal(2, newJob.Id);
         Assert.Equal(2, repo.Count());
     }
+
+    [Fact]
+    public void GetById_ReturnsCopy_MutationDoesNotAffectStore()
+    {
+        IJobRepository repo = new FileJobRepository(_filePath);
+        var job = new BackupJob(0, "Original", "/src", "/dst", BackupType.Full);
+        repo.Save(job);
+
+        var retrieved = repo.GetById(job.Id);
+        Assert.NotNull(retrieved);
+        retrieved!.Name = "Mutated";
+
+        var retrievedAgain = repo.GetById(job.Id);
+        Assert.Equal("Original", retrievedAgain!.Name);
+    }
 }

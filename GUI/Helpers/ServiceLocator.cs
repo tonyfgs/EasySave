@@ -44,7 +44,7 @@ public static class ServiceLocator
         AppConfiguration = appConfig;
 
         var easyLogger = new DailyLogsService();
-        var transferLogger = new DynamicTransferLogger(appConfig, easyLogger, appConfig.GetLogDirectory());
+        var transferLogger = new DynamicTransferLogger(appConfig, easyLogger);
 
         var eventBus = new InProcessEventBus();
         EventBus = eventBus;

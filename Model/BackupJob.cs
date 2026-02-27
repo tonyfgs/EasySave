@@ -20,7 +20,7 @@ public class BackupJob
         TargetPath = targetPath;
         Type = type;
         LastFullBackupDate = null;
-        CreatedDate = DateTime.Now;
+        CreatedDate = DateTime.UtcNow;
     }
 
     [JsonConstructor]

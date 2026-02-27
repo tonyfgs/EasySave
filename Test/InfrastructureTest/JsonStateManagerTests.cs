@@ -135,4 +135,35 @@ public class JsonStateManagerTests : IDisposable
 
         Assert.Equal("ACTIVE", element.GetProperty("State").GetString());
     }
+
+    [Fact]
+    public void ConcurrentUpdates_ShouldNotCorruptState()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"state_concurrent_{Guid.NewGuid()}.json");
+        try
+        {
+            var manager = new JsonStateManager(tempFile);
+            var tasks = Enumerable.Range(0, 20).Select(i =>
+                Task.Run(() =>
+                {
+                    manager.UpdateState(new StateSnapshot
+                    {
+                        Name = $"Job-{i % 5}",
+                        Timestamp = DateTime.UtcNow,
+                        State = JobState.Active,
+                        Progress = i * 5
+                    });
+                }));
+
+            Task.WaitAll(tasks.ToArray());
+
+            var states = manager.GetAllStates();
+            Assert.Equal(5, states.Count);
+            Assert.All(states, s => Assert.StartsWith("Job-", s.Name));
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
 }

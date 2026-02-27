@@ -46,7 +46,15 @@ public class FileJobRepository : IJobRepository
     public BackupJob? GetById(int id)
     {
         lock (_lock)
-            return _jobs.FirstOrDefault(j => j.Id == id);
+        {
+            var job = _jobs.FirstOrDefault(j => j.Id == id);
+            if (job is null) return null;
+            return new BackupJob(job.Id, job.Name, job.SourcePath, job.TargetPath, job.Type)
+            {
+                LastFullBackupDate = job.LastFullBackupDate,
+                CreatedDate = job.CreatedDate
+            };
+        }
     }
 
     public void Update(BackupJob job)

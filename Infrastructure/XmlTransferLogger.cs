@@ -30,6 +30,6 @@ public class XmlTransferLogger : ITransferLogger
 
     private string GetDailyLogPath()
     {
-        return Path.Combine(_logDirectory, $"{DateTime.Now:yyyy-MM-dd}.xml");
+        return Path.Combine(_logDirectory, $"{DateTime.UtcNow:yyyy-MM-dd}.xml");
     }
 }

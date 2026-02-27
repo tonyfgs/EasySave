@@ -19,7 +19,7 @@ public class DynamicTransferLoggerTests
             var config = new AppConfiguration(configPath, logDirectory);
             config.SetLogFormat(LogFormat.JSON);
 
-            var logger = new DynamicTransferLogger(config, new Logger.Service.DailyLogsService(), logDirectory);
+            var logger = new DynamicTransferLogger(config, new Logger.Service.DailyLogsService());
 
             var transferLog = new TransferLog
             {
@@ -59,7 +59,7 @@ public class DynamicTransferLoggerTests
             var config = new AppConfiguration(configPath, logDirectory);
             config.SetLogFormat(LogFormat.XML);
 
-            var logger = new DynamicTransferLogger(config, new Logger.Service.DailyLogsService(), logDirectory);
+            var logger = new DynamicTransferLogger(config, new Logger.Service.DailyLogsService());
 
             var transferLog = new TransferLog
             {

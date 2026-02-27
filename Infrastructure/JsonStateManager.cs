@@ -7,6 +7,7 @@ namespace Infrastructure;
 public class JsonStateManager : IStateManager
 {
     private readonly string _filePath;
+    private readonly object _lock = new();
     private List<StateSnapshot> _states;
 
     public JsonStateManager(string filePath)
@@ -17,24 +18,33 @@ public class JsonStateManager : IStateManager
 
     public void UpdateState(StateSnapshot snapshot)
     {
-        var index = _states.FindIndex(s => s.Name == snapshot.Name);
-        if (index >= 0)
-            _states[index] = snapshot;
-        else
-            _states.Add(snapshot);
+        lock (_lock)
+        {
+            var index = _states.FindIndex(s => s.Name == snapshot.Name);
+            if (index >= 0)
+                _states[index] = snapshot;
+            else
+                _states.Add(snapshot);
 
-        PersistToDisk();
+            PersistToDisk();
+        }
     }
 
     public List<StateSnapshot> GetAllStates()
     {
-        return new List<StateSnapshot>(_states);
+        lock (_lock)
+        {
+            return new List<StateSnapshot>(_states);
+        }
     }
 
     public void ClearAll()
     {
-        _states.Clear();
-        PersistToDisk();
+        lock (_lock)
+        {
+            _states.Clear();
+            PersistToDisk();
+        }
     }
 
     private void PersistToDisk()

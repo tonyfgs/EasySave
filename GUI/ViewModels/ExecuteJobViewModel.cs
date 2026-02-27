@@ -137,17 +137,35 @@ public class ExecuteJobViewModel : ObservableObject,
 
     private async Task ExecuteSelectedAsync()
     {
-        // Only run jobs that are not already executing
         var jobsToRun = SelectedJobs
             .Where(j => !_runningJobIds.Contains(j.Id))
             .ToList();
+        await ExecuteJobsInternalAsync(jobsToRun);
+    }
 
+    private async Task ExecuteAllAsync()
+    {
+        var jobsToRun = AvailableJobs
+            .Where(jp => !_runningJobIds.Contains(jp.Job.Id))
+            .ToList();
+
+        foreach (var jp in jobsToRun)
+        {
+            jp.IsSelected = true;
+            if (!SelectedJobs.Contains(jp.Job))
+                SelectedJobs.Add(jp.Job);
+        }
+
+        var jobs = jobsToRun.Select(jp => jp.Job).ToList();
+        await ExecuteJobsInternalAsync(jobs);
+    }
+
+    private async Task ExecuteJobsInternalAsync(List<BackupJob> jobsToRun)
+    {
         if (jobsToRun.Count == 0) return;
 
         var jobIds = jobsToRun.Select(j => j.Id).ToList();
-
-        foreach (var j in jobsToRun)
-            _runningJobIds.Add(j.Id);
+        foreach (var j in jobsToRun) _runningJobIds.Add(j.Id);
 
         IsExecuting = true;
         Results.Clear();
@@ -189,77 +207,6 @@ public class ExecuteJobViewModel : ObservableObject,
                 var jp = AvailableJobs.FirstOrDefault(p => p.Job.Id == j.Id);
                 if (jp != null) jp.IsSelected = false;
                 SelectedJobs.Remove(j);
-            }
-
-            IsExecuting = _runningJobIds.Count > 0;
-
-            if (!IsExecuting)
-            {
-                OverallProgress = 0;
-                CurrentFile = string.Empty;
-            }
-
-            RefreshCommandStates();
-        }
-    }
-
-    private async Task ExecuteAllAsync()
-    {
-        // Only run jobs not already executing
-        var jobsToRun = AvailableJobs
-            .Where(jp => !_runningJobIds.Contains(jp.Job.Id))
-            .ToList();
-
-        if (jobsToRun.Count == 0) return;
-
-        foreach (var jp in jobsToRun)
-        {
-            jp.IsSelected = true;
-            if (!SelectedJobs.Contains(jp.Job))
-                SelectedJobs.Add(jp.Job);
-            _runningJobIds.Add(jp.Job.Id);
-        }
-
-        IsExecuting = true;
-        Results.Clear();
-        CurrentFile = string.Empty;
-        StatusMessage = "Executing backups...";
-        RefreshCommandStates();
-
-        try
-        {
-            var jobIds = jobsToRun.Select(jp => jp.Job.Id).ToList();
-            var results = await _executionService.ExecuteJobsAsync(jobIds);
-
-            int succeeded = results.Count(r => r.Result.Success);
-            int failed = results.Count - succeeded;
-
-            foreach (var r in results)
-                Results.Add(r);
-
-            if (failed > 0)
-            {
-                var errors = string.Join("; ", results
-                    .Where(r => !r.Result.Success)
-                    .Select(j => $"Job {j.JobId}: {string.Join(", ", j.Result.Errors)}"));
-                StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed. Errors: {errors}";
-            }
-            else
-            {
-                StatusMessage = $"Completed: {succeeded} succeeded.";
-            }
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Execution error: {ex.Message}";
-        }
-        finally
-        {
-            foreach (var jp in jobsToRun)
-            {
-                _runningJobIds.Remove(jp.Job.Id);
-                jp.IsSelected = false;
-                SelectedJobs.Remove(jp.Job);
             }
 
             IsExecuting = _runningJobIds.Count > 0;

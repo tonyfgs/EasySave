@@ -13,7 +13,7 @@ public class DailyLogsService : IEasyLogger
             Directory.CreateDirectory(directory);
         }
 
-        string fileName = $"{DateTime.Now:yyyy-MM-dd}.json";
+        string fileName = $"{DateTime.UtcNow:yyyy-MM-dd}.json";
         string fullPath = Path.Combine(directory!, fileName);
 
         var options = new JsonSerializerOptions { WriteIndented = true };

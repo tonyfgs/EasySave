@@ -25,8 +25,8 @@ public class BackupJobTests
         Assert.Equal("/dst", job.TargetPath);
         Assert.Equal(BackupType.Differential, job.Type);
         Assert.Null(job.LastFullBackupDate);
-        Assert.True(job.CreatedDate <= DateTime.Now);
-        Assert.True(job.CreatedDate > DateTime.Now.AddSeconds(-5));
+        Assert.True(job.CreatedDate <= DateTime.UtcNow);
+        Assert.True(job.CreatedDate > DateTime.UtcNow.AddSeconds(-5));
     }
 
     [Fact]
